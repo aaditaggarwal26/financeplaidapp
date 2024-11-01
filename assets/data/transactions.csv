@@ -1,0 +1,37 @@
+Date,Description,Category,Amount,Account,Transaction_Type
+2024-10-01,WALMART GROCERY #4523,Groceries,123.45,Checking,Debit
+2024-10-01,NETFLIX,Entertainment,15.99,Credit Card,Debit
+2024-10-02,TARGET,Shopping,89.23,Credit Card,Debit
+2024-10-02,SHELL OIL #5678,Transportation,45.67,Credit Card,Debit
+2024-10-03,SUBWAY,Dining_Out,12.34,Credit Card,Debit
+2024-10-03,APARTMENT RENT,Rent,1500.00,Checking,Debit
+2024-10-04,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-10-05,TRADER JOES #234,Groceries,78.90,Credit Card,Debit
+2024-10-06,AMC THEATERS,Entertainment,34.56,Credit Card,Debit
+2024-10-07,COMCAST,Utilities,89.23,Checking,Debit
+2024-10-08,CVS PHARMACY,Healthcare,45.67,Credit Card,Debit
+2024-10-09,CHIPOTLE,Dining_Out,15.67,Credit Card,Debit
+2024-10-10,AUTO INSURANCE,Insurance,234.56,Checking,Debit
+2024-10-11,AMAZON.COM,Shopping,123.45,Credit Card,Debit
+2024-10-12,STARBUCKS,Dining_Out,5.67,Credit Card,Debit
+2024-10-13,MOBILE PHONE BILL,Utilities,100.89,Checking,Debit
+2024-10-14,HOME DEPOT,Shopping,167.89,Credit Card,Debit
+2024-10-15,WHOLEFDS MKT,Groceries,145.67,Credit Card,Debit
+2024-10-16,UBER,Transportation,23.45,Credit Card,Debit
+2024-10-17,SPOTIFY,Entertainment,9.99,Credit Card,Debit
+2024-10-18,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-10-19,PETCO,Shopping,56.78,Credit Card,Debit
+2024-10-20,CHEVRON,Transportation,48.90,Credit Card,Debit
+2024-10-21,GRUBHUB,Dining_Out,45.67,Credit Card,Debit
+2024-10-22,DOCTOR VISIT COPAY,Healthcare,35.00,Credit Card,Debit
+2024-10-23,COSTCO GAS,Transportation,65.78,Credit Card,Debit
+2024-10-24,COSTCO WHSE,Groceries,234.56,Credit Card,Debit
+2024-10-25,GYM MEMBERSHIP,Entertainment,45.00,Checking,Debit
+2024-10-26,ROSS,Shopping,78.90,Credit Card,Debit
+2024-10-27,OLIVE GARDEN,Dining_Out,67.89,Credit Card,Debit
+2024-10-28,ELECTRIC BILL,Utilities,76.11,Checking,Debit
+2024-10-05,BEST BUY,Shopping,399.99,Credit Card,Debit,secondary
+2024-10-08,DELTA AIRLINES,Travel,567.89,Credit Card,Debit,secondary
+2024-10-12,AMAZON PRIME,Shopping,234.56,Credit Card,Debit,secondary
+2024-10-15,MARRIOTT HOTELS,Travel,789.23,Credit Card,Debit,secondary
+2024-10-20,APPLE STORE,Shopping,1299.99,Credit Card,Debit,secondary
