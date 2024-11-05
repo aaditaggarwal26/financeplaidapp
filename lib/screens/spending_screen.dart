@@ -1,8 +1,8 @@
-import 'package:fbla_coding_programming_app/models/monthly_spending.dart';
-import 'package:fbla_coding_programming_app/services/data_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class SpendingScreen extends StatefulWidget {
   const SpendingScreen({Key? key}) : super(key: key);
@@ -24,13 +24,30 @@ class _SpendingScreenState extends State<SpendingScreen> {
   }
 
   Future<void> loadData() async {
-    final spendingService = DataService();
-    final spending = await spendingService.getMonthlySpending();
-    setState(() {
-      monthlySpending = spending;
-      selectedMonthIndex = spending.length - 1;
-      isLoading = false;
-    });
+    try {
+      final response = await http.get(Uri.parse('http://localhost:3003/transactions'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        if (data.isNotEmpty) {
+          setState(() {
+            monthlySpending = data.map((e) => MonthlySpending.fromJson(e)).toList();
+            selectedMonthIndex = monthlySpending.length - 1;
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            isLoading = false;
+          });
+        }
+      } else {
+        throw Exception('Failed to load transactions');
+      }
+    } catch (e) {
+      print('Error loading data: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
   @override
@@ -38,6 +55,12 @@ class _SpendingScreenState extends State<SpendingScreen> {
     if (isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (monthlySpending.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('No data available', style: TextStyle(color: Colors.black, fontSize: 18))),
       );
     }
 
@@ -348,5 +371,25 @@ class _SpendingScreenState extends State<SpendingScreen> {
       'Miscellaneous': Icons.more_horiz,
     };
     return icons[category] ?? Icons.category;
+  }
+}
+
+class MonthlySpending {
+  final DateTime date;
+  final double totalSpent;
+  final Map<String, double> categoryBreakdown;
+
+  MonthlySpending({
+    required this.date,
+    required this.totalSpent,
+    required this.categoryBreakdown,
+  });
+
+  factory MonthlySpending.fromJson(Map<String, dynamic> json) {
+    return MonthlySpending(
+      date: DateTime.parse(json['date']),
+      totalSpent: json['totalSpent'].toDouble(),
+      categoryBreakdown: Map<String, double>.from(json['categoryBreakdown']),
+    );
   }
 }
