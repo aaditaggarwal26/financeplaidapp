@@ -1,3 +1,4 @@
+import 'package:fbla_coding_programming_app/screens/settings_screen.dart';
 import 'package:fbla_coding_programming_app/screens/spending_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:fbla_coding_programming_app/screens/dashboard_screen.dart';
@@ -16,7 +17,7 @@ class _TabsState extends State<Tabs> {
     const DashboardScreen(),
     const SpendingScreen(),
     const Placeholder(),
-    const Placeholder(),
+    SettingsScreen(),
   ];
 
   @override

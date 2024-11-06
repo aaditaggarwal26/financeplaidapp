@@ -115,19 +115,16 @@ class DataService {
       final String data = await rootBundle
           .loadString('assets/data/monthly_spending_categories.csv');
 
-      // Add debug print to see raw data
       print('Raw CSV data:');
       print(data);
 
-      // Convert using more explicit parameters
       List<List<dynamic>> csvTable = const CsvToListConverter().convert(
         data,
         eol: '\n',
         fieldDelimiter: ',',
-        shouldParseNumbers: false, // Prevent automatic number parsing
+        shouldParseNumbers: false,
       );
 
-      // Debug print the parsed table
       print('Parsed CSV table length: ${csvTable.length}');
       if (csvTable.isNotEmpty) {
         print('Headers: ${csvTable[0]}');
@@ -135,34 +132,24 @@ class DataService {
 
       List<MonthlySpending> monthlySpending = [];
 
-      // Validate CSV structure
       if (csvTable.isEmpty) {
         print('Error: CSV table is empty');
         return [];
       }
 
       if (csvTable[0].length != 11) {
-        // Month + 10 categories
         print(
             'Error: Invalid number of columns. Expected 11, got ${csvTable[0].length}');
         return [];
       }
 
-      // Process data rows
       for (var i = 1; i < csvTable.length; i++) {
         try {
           var row = csvTable[i];
-          // Validate row length
           if (row.length != 11) {
-            print(
-                'Error: Invalid row length at row $i. Expected 11, got ${row.length}');
             continue;
           }
 
-          // Print raw row data for debugging
-          print('Processing row $i: $row');
-
-          // Create MonthlySpending object with explicit error handling
           monthlySpending.add(MonthlySpending(
             date: DateFormat('yyyy-MM').parse(row[0].toString().trim()),
             groceries: _parseDouble(row[1].toString().trim()),
@@ -182,8 +169,6 @@ class DataService {
         }
       }
 
-      print(
-          'Successfully parsed ${monthlySpending.length} monthly spending records');
       return monthlySpending;
     } catch (e) {
       print('Error loading monthly spending: $e');

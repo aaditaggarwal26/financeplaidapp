@@ -1,5 +1,7 @@
+import 'package:fbla_coding_programming_app/screens/login_screen.dart';
 import 'package:fbla_coding_programming_app/screens/spending_screen.dart';
 import 'package:fbla_coding_programming_app/tabs.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,6 +12,8 @@ import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   try {
     // Load the .env file from the root of the project
     await dotenv.load(fileName: ".env");
@@ -27,7 +31,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'FBLA Finance App',
       theme: ThemeData(primarySwatch: Colors.purple),
-      home: const Tabs(),
+      home: LoginScreen(),
     );
   }
 }
