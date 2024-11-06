@@ -1,4 +1,5 @@
 import 'package:fbla_coding_programming_app/screens/spending_screen.dart';
+import 'package:fbla_coding_programming_app/tabs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:path_provider/path_provider.dart';
@@ -26,7 +27,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'FBLA Finance App',
       theme: ThemeData(primarySwatch: Colors.purple),
-      home: const SpendingScreen(),
+      home: const Tabs(),
     );
   }
 }

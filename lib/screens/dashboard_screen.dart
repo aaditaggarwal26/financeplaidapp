@@ -259,7 +259,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return FutureBuilder(
       future: Future.wait([_balancesFuture, _transactionsFuture]),
       builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
-        print(snapshot);
         if (!snapshot.hasData || snapshot.data == null) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
@@ -416,30 +415,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-          bottomNavigationBar: BottomNavigationBar(
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: const Color(0xFF2B3A55),
-            unselectedItemColor: Colors.grey,
-            currentIndex: 0,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard_outlined),
-                label: 'Dashboard',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.account_balance_wallet_outlined),
-                label: 'Spending',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.search),
-                label: 'Transactions',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.settings),
-                label: 'Settings',
               ),
             ],
           ),
