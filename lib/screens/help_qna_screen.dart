@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fbla_coding_programming_app/screens/dashboard_screen.dart';
-import 'package:fbla_coding_programming_app/screens/spending_screen.dart';
 
 class HelpQAScreen extends StatefulWidget {
   const HelpQAScreen({Key? key}) : super(key: key);
@@ -65,6 +63,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> {
         itemBuilder: (context, index) {
           final qna = _questionsAndAnswers[index];
           return Card(
+            color: Colors.white,
             elevation: 2,
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             shape: RoundedRectangleBorder(
@@ -102,45 +101,6 @@ class _HelpQAScreenState extends State<HelpQAScreen> {
             ),
           );
         },
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF2B3A55),
-        unselectedItemColor: Colors.grey,
-        currentIndex: 2,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const DashboardScreen()),
-              );
-              break;
-            case 1:
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const SpendingScreen()),
-              );
-              break;
-            case 2:
-              // alr on this screen, do nothing
-              break;
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            label: 'Spending',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.help_outline),
-            label: 'Help',
-          ),
-        ],
       ),
     );
   }

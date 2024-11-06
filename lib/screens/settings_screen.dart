@@ -1,3 +1,4 @@
+import 'package:fbla_coding_programming_app/screens/help_qna_screen.dart';
 import 'package:fbla_coding_programming_app/screens/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -43,9 +44,8 @@ class SettingsScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Card(
-                color:
-                    const Color(0xFFE5C87E), // Updated to a richer gold color
-                elevation: 2, // Slightly increased elevation
+                color: const Color(0xFFE5C87E),
+                elevation: 2,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -57,7 +57,7 @@ class SettingsScreen extends StatelessWidget {
                       end: Alignment.bottomRight,
                       colors: [
                         Color(0xFFE5C87E),
-                        Color(0xFFD4AF37), // Metallic gold
+                        Color(0xFFD4AF37),
                       ],
                     ),
                   ),
@@ -79,8 +79,7 @@ class SettingsScreen extends StatelessWidget {
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
-                                  color: Color(
-                                      0xFF2B3A55), // Making text color match theme
+                                  color: Color(0xFF2B3A55),
                                 ),
                               ),
                               Text(
@@ -106,22 +105,19 @@ class SettingsScreen extends StatelessWidget {
               title: 'Notifications',
               onTap: () {},
             ),
-            _buildSettingsTile(
-              icon: Icons.security_outlined,
-              title: 'Security',
-              onTap: () {},
-            ),
-            _buildSettingsTile(
-              icon: Icons.color_lens_outlined,
-              title: 'Theme',
-              onTap: () {},
-            ),
           ]),
           _buildSettingsSection('SUPPORT', [
             _buildSettingsTile(
               icon: Icons.help_outline,
               title: 'Help & Support',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => HelpQAScreen(),
+                  ),
+                );
+              },
             ),
             _buildSettingsTile(
               icon: Icons.info_outline,

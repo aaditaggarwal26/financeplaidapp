@@ -41,7 +41,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildGraphCard({required bool isSpending}) {
     return Card(
-      elevation: 1,
+      color: Colors.white,
+      elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
