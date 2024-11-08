@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:fbla_coding_programming_app/tabs.dart';
+import 'package:finsight/tabs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 

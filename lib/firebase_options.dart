@@ -71,5 +71,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'finsight-a5027.firebasestorage.app',
     iosBundleId: 'com.example.fblaCodingProgrammingApp',
   );
-
 }

@@ -1,4 +1,4 @@
-name: fbla_coding_programming_app
+name: finsight
 description: "A new Flutter project."
 publish_to: 'none'
 version: 1.0.0+1
@@ -36,3 +36,4 @@ flutter:
     - assets/data/credit_score.csv
     - assets/data/monthly_cashflow.csv
     - assets/data/transactions.csv
+    - assets/images/logo.png

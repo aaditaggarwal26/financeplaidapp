@@ -1,5 +1,5 @@
-import 'package:fbla_coding_programming_app/screens/help_qna_screen.dart';
-import 'package:fbla_coding_programming_app/screens/login_screen.dart';
+import 'package:finsight/screens/help_qna_screen.dart';
+import 'package:finsight/screens/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 

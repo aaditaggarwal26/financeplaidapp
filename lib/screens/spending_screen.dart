@@ -1,5 +1,5 @@
-import 'package:fbla_coding_programming_app/models/monthly_spending.dart';
-import 'package:fbla_coding_programming_app/services/data_service.dart';
+import 'package:finsight/models/monthly_spending.dart';
+import 'package:finsight/services/data_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';

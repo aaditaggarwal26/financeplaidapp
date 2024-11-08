@@ -1,7 +1,7 @@
-import 'package:fbla_coding_programming_app/screens/settings_screen.dart';
-import 'package:fbla_coding_programming_app/screens/spending_screen.dart';
+import 'package:finsight/screens/settings_screen.dart';
+import 'package:finsight/screens/spending_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:fbla_coding_programming_app/screens/dashboard_screen.dart';
+import 'package:finsight/screens/dashboard_screen.dart';
 
 class Tabs extends StatefulWidget {
   const Tabs({super.key});

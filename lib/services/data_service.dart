@@ -1,8 +1,8 @@
 import 'package:csv/csv.dart';
-import 'package:fbla_coding_programming_app/models/account_balance.dart';
-import 'package:fbla_coding_programming_app/models/monthly_spending.dart';
-import 'package:fbla_coding_programming_app/models/transaction.dart';
-import 'package:fbla_coding_programming_app/models/credit_card.dart';
+import 'package:finsight/models/account_balance.dart';
+import 'package:finsight/models/monthly_spending.dart';
+import 'package:finsight/models/transaction.dart';
+import 'package:finsight/models/credit_card.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 

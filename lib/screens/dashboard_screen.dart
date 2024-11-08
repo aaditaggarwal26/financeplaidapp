@@ -1,7 +1,7 @@
-import 'package:fbla_coding_programming_app/models/account_balance.dart';
-import 'package:fbla_coding_programming_app/models/transaction.dart';
-import 'package:fbla_coding_programming_app/services/data_service.dart';
-import 'package:fbla_coding_programming_app/widgets/credit_card_widget.dart';
+import 'package:finsight/models/account_balance.dart';
+import 'package:finsight/models/transaction.dart';
+import 'package:finsight/services/data_service.dart';
+import 'package:finsight/widgets/credit_card_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 

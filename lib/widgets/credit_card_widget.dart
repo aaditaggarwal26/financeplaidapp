@@ -1,4 +1,4 @@
-import 'package:fbla_coding_programming_app/models/transaction.dart';
+import 'package:finsight/models/transaction.dart';
 import 'package:flutter/material.dart';
 import '../models/credit_card.dart';
 
