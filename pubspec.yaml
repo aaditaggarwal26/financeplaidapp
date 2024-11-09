@@ -23,6 +23,7 @@ dependencies:
   flutter_secure_storage: ^8.0.0
   plaid_flutter: ^2.0.0
   google_sign_in: ^6.2.2
+  collection: ^1.18.0
 
 dev_dependencies:
   flutter_test:

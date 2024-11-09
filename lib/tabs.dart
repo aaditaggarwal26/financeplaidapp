@@ -1,5 +1,6 @@
 import 'package:finsight/screens/settings_screen.dart';
 import 'package:finsight/screens/spending_screen.dart';
+import 'package:finsight/screens/transitions_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:finsight/screens/dashboard_screen.dart';
 
@@ -16,7 +17,7 @@ class _TabsState extends State<Tabs> {
   final List<Widget> _screens = [
     const DashboardScreen(),
     const SpendingScreen(),
-    const Placeholder(),
+    const TransactionScreen(),
     SettingsScreen(),
   ];
 

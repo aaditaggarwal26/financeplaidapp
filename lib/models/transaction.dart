@@ -25,7 +25,7 @@ class Transaction {
       amount: double.parse(map['Amount']),
       account: map['Account'],
       transactionType: map['Transaction_Type'],
-      cardId: map['Card_ID'], // New field
+      cardId: map['Card_ID'],
     );
   }
 }
