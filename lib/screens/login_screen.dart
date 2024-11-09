@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:finsight/tabs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -24,6 +25,74 @@ class _LoginScreenState extends State<LoginScreen> {
   String? errorMessage;
 
   late StreamSubscription<User?> _authStateSubscription;
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email'],
+    signInOption: SignInOption.standard,
+  );
+
+  Future<void> _signInWithGoogle() async {
+    print('entered method');
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+    print('finished set state');
+
+    try {
+      final GoogleSignInAccount? googleUser =
+          await _googleSignIn.signIn().catchError((error) {
+        print('Google Sign In Error: $error');
+        throw error;
+      });
+
+      print('sign in attempt completed');
+
+      if (googleUser == null) {
+        print('User cancelled the sign-in process');
+        setState(() {
+          isLoading = false;
+          errorMessage = 'Sign in cancelled';
+        });
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      print('got the tocken');
+
+      await _auth.signInWithCredential(credential);
+
+      if (!mounted) return;
+
+      print('about to push');
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const Tabs(),
+        ),
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Successfully logged in with Google!')),
+      );
+    } catch (e) {
+      print('Error during Google Sign In: $e');
+      setState(() {
+        errorMessage = 'Failed to sign in with Google';
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -150,8 +219,10 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Stack(
         children: [
           Container(
-            height: MediaQuery.of(context).size.height * 0.3,
-            color: const Color.fromARGB(255, 26, 38, 57),
+            height: MediaQuery.of(context).size.height * 0.4,
+            decoration: BoxDecoration(
+              color: const Color.fromARGB(255, 23, 31, 45),
+            ),
           ),
           Column(
             children: [
@@ -161,7 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 20),
                       const Text(
                         'Get Started now',
                         style: TextStyle(
@@ -175,7 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         'Create an account or log in to explore about our app',
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.grey[500],
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -220,7 +291,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         boxShadow: isLogin
                                             ? [
                                                 BoxShadow(
-                                                  color: Colors.grey
+                                                  color: const Color(0xFFD4AF37)
                                                       .withOpacity(0.2),
                                                   spreadRadius: 1,
                                                   blurRadius: 4,
@@ -260,7 +331,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         boxShadow: !isLogin
                                             ? [
                                                 BoxShadow(
-                                                  color: Colors.grey
+                                                  color: const Color(0xFFFFD700)
                                                       .withOpacity(0.2),
                                                   spreadRadius: 1,
                                                   blurRadius: 4,
@@ -299,16 +370,26 @@ class _LoginScreenState extends State<LoginScreen> {
                               fillColor: Colors.grey[100],
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFD4AF37)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFD4AF37),
+                                  width: 2,
+                                ),
                               ),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 16),
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
                           TextField(
-                            obscureText: obscurePassword,
                             controller: _passwordController,
+                            obscureText: obscurePassword,
                             decoration: InputDecoration(
                               hintText: 'Password',
                               hintStyle: TextStyle(color: Colors.grey[600]),
@@ -316,24 +397,34 @@ class _LoginScreenState extends State<LoginScreen> {
                               fillColor: Colors.grey[100],
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFD4AF37)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFD4AF37),
+                                  width: 2,
+                                ),
                               ),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 16),
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   obscurePassword
                                       ? Icons.visibility_off
                                       : Icons.visibility,
-                                  color: Colors.grey[600],
+                                  color: const Color(0xFFD4AF37),
                                 ),
                                 onPressed: () => setState(
                                     () => obscurePassword = !obscurePassword),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 16),
                           if (!isLogin) ...[
+                            const SizedBox(height: 16),
                             TextField(
                               controller: _confirmPasswordController,
                               obscureText: obscureConfirmPassword,
@@ -344,16 +435,26 @@ class _LoginScreenState extends State<LoginScreen> {
                                 fillColor: Colors.grey[100],
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
+                                  borderSide: const BorderSide(
+                                      color: Color(0xFFD4AF37)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFD4AF37),
+                                    width: 2,
+                                  ),
                                 ),
                                 contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 16),
+                                  horizontal: 16,
+                                  vertical: 16,
+                                ),
                                 suffixIcon: IconButton(
                                   icon: Icon(
                                     obscureConfirmPassword
                                         ? Icons.visibility_off
                                         : Icons.visibility,
-                                    color: Colors.grey[600],
+                                    color: const Color(0xFFD4AF37),
                                   ),
                                   onPressed: () => setState(() =>
                                       obscureConfirmPassword =
@@ -361,7 +462,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
                           ],
                           if (isLogin) ...[
                             Align(
@@ -370,7 +470,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 onPressed: _resetPassword,
                                 child: const Text(
                                   'Forgot Password?',
-                                  style: TextStyle(color: Color(0xFF2B3A55)),
+                                  style: TextStyle(color: Color(0xFFD4AF37)),
                                 ),
                               ),
                             ),
@@ -386,13 +486,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
+                                side: const BorderSide(
+                                  color: Color(0xFFD4AF37),
+                                  width: 1,
+                                ),
                               ),
                               onPressed: isLoading
                                   ? null
                                   : (isLogin ? _signIn : _signUp),
                               child: isLoading
                                   ? const CircularProgressIndicator(
-                                      color: Colors.white)
+                                      color: Color(0xFFD4AF37))
                                   : Text(
                                       isLogin ? 'Log In' : 'Sign Up',
                                       style: const TextStyle(
@@ -401,6 +505,69 @@ class _LoginScreenState extends State<LoginScreen> {
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Divider(
+                                  color: Colors.grey[400],
+                                  thickness: 1,
+                                ),
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(
+                                  'OR',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Divider(
+                                  color: Colors.grey[400],
+                                  thickness: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12, horizontal: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                side: BorderSide(color: Colors.grey[300]!),
+                                backgroundColor: Colors.white,
+                              ),
+                              onPressed: isLoading ? null : _signInWithGoogle,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/images/google_logo.png',
+                                    height: 24,
+                                    width: 24,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'Sign in with Google',
+                                    style: TextStyle(
+                                      color: Colors.black87,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           if (errorMessage != null) ...[

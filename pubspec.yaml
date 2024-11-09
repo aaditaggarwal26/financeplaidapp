@@ -22,6 +22,7 @@ dependencies:
   shared_preferences: ^2.1.0
   flutter_secure_storage: ^8.0.0
   plaid_flutter: ^2.0.0
+  google_sign_in: ^6.2.2
 
 dev_dependencies:
   flutter_test:
@@ -37,3 +38,7 @@ flutter:
     - assets/data/monthly_cashflow.csv
     - assets/data/transactions.csv
     - assets/images/logo.png
+    - assets/images/logo_cropped.png
+    - assets/images/money_background_2.avif
+    - assets/images/money_background.jpg
+    - assets/images/google_logo.png
