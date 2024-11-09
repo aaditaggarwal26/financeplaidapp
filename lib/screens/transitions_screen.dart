@@ -332,7 +332,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  // New header row with action buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -364,7 +363,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // Existing search bar
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
