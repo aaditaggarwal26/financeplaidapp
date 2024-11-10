@@ -87,6 +87,8 @@ PODS:
   - plaid_flutter (0.0.1):
     - Flutter
     - Plaid (= 2.5.1)
+  - printing (1.0.0):
+    - Flutter
   - RecaptchaInterop (100.0.0)
   - shared_preferences_foundation (0.0.1):
     - Flutter
@@ -101,6 +103,7 @@ DEPENDENCIES:
   - open_file_ios (from `.symlinks/plugins/open_file_ios/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - plaid_flutter (from `.symlinks/plugins/plaid_flutter/ios`)
+  - printing (from `.symlinks/plugins/printing/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
 
 SPEC REPOS:
@@ -137,6 +140,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
   plaid_flutter:
     :path: ".symlinks/plugins/plaid_flutter/ios"
+  printing:
+    :path: ".symlinks/plugins/printing/ios"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
 
@@ -162,6 +167,7 @@ SPEC CHECKSUMS:
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
   Plaid: 6beadc0828cfd5396c5905931b9503493bbc139a
   plaid_flutter: 906414d02eea2353b2cd59ac20d07253bf6f1104
+  printing: 233e1b73bd1f4a05615548e9b5a324c98588640b
   RecaptchaInterop: 7d1a4a01a6b2cb1610a47ef3f85f0c411434cb21
   shared_preferences_foundation: fcdcbc04712aee1108ac7fda236f363274528f78
 

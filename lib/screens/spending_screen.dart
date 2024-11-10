@@ -1,3 +1,4 @@
+import 'package:finsight/exports/spending_export.dart';
 import 'package:finsight/models/monthly_spending.dart';
 import 'package:finsight/services/data_service.dart';
 import 'package:flutter/material.dart';
@@ -50,16 +51,46 @@ class _SpendingScreenState extends State<SpendingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text(
-                'Spending',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Spending',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.download, color: Colors.white),
+                    onPressed: () async {
+                      try {
+                        await SpendingReportGenerator.generateReport(
+                            monthlySpending, context);
+
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Report generated successfully')),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(
+                                    'Error generating report: ${e.toString()}')),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
             Padding(

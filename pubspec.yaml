@@ -11,9 +11,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_dotenv: ^5.0.2
   csv: ^6.0.0
-  path_provider: ^2.0.11
+  path_provider: ^2.1.5
   http: ^1.2.2  
-  open_file: ^3.2.1
+  open_file: ^3.5.9
   intl: ^0.19.0
   fl_chart: ^0.69.0
   firebase_core: ^3.6.0
@@ -24,6 +24,9 @@ dependencies:
   plaid_flutter: ^2.0.0
   google_sign_in: ^6.2.2
   collection: ^1.18.0
+  pdf: ^3.11.1
+  printing: ^5.13.4
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -40,6 +43,5 @@ flutter:
     - assets/data/transactions.csv
     - assets/images/logo.png
     - assets/images/logo_cropped.png
-    - assets/images/money_background_2.avif
-    - assets/images/money_background.jpg
     - assets/images/google_logo.png
+    - assets/fonts/Roboto-Regular.ttf

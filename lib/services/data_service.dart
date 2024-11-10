@@ -115,9 +115,6 @@ class DataService {
       final String data = await rootBundle
           .loadString('assets/data/monthly_spending_categories.csv');
 
-      print('Raw CSV data:');
-      print(data);
-
       List<List<dynamic>> csvTable = const CsvToListConverter().convert(
         data,
         eol: '\n',

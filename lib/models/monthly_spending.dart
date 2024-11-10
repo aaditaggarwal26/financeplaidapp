@@ -1,3 +1,4 @@
+import 'package:finsight/models/account_balance.dart';
 import 'package:intl/intl.dart';
 
 class MonthlySpending {
@@ -12,6 +13,8 @@ class MonthlySpending {
   final double healthcare;
   final double insurance;
   final double miscellaneous;
+  final double? income;
+  final AccountBalance? accountBalance;
 
   MonthlySpending({
     required this.date,
@@ -25,6 +28,8 @@ class MonthlySpending {
     required this.healthcare,
     required this.insurance,
     required this.miscellaneous,
+    this.income,
+    this.accountBalance,
   });
 
   double get totalSpent =>
@@ -52,7 +57,7 @@ class MonthlySpending {
         'Miscellaneous': miscellaneous,
       };
 
-  static MonthlySpending fromCsv(List<dynamic> row) {
+  static MonthlySpending fromCsv(List<dynamic> row, {AccountBalance? balance}) {
     return MonthlySpending(
       date: DateFormat('yyyy-MM').parse(row[0].toString()),
       groceries: double.parse(row[1].toString()),
@@ -65,6 +70,7 @@ class MonthlySpending {
       healthcare: double.parse(row[8].toString()),
       insurance: double.parse(row[9].toString()),
       miscellaneous: double.parse(row[10].toString()),
+      accountBalance: balance,
     );
   }
 }

@@ -35,3 +35,36 @@ Date,Description,Category,Amount,Account,Transaction_Type
 2024-10-12,AMAZON PRIME,Shopping,234.56,Credit Card,Debit,secondary
 2024-10-15,MARRIOTT HOTELS,Travel,789.23,Credit Card,Debit,secondary
 2024-10-20,APPLE STORE,Shopping,1299.99,Credit Card,Debit,secondary
+2024-08-01,WALMART GROCERY #4523,Groceries,118.45,Checking,Debit
+2024-08-01,NETFLIX,Entertainment,15.99,Credit Card,Debit
+2024-08-02,TARGET,Shopping,92.45,Credit Card,Debit
+2024-08-03,APARTMENT RENT,Rent,1500.00,Checking,Debit
+2024-08-04,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-08-05,SHELL OIL #5678,Transportation,48.90,Credit Card,Debit
+2024-08-06,TRADER JOES #234,Groceries,82.34,Credit Card,Debit
+2024-08-07,COMCAST,Utilities,89.23,Checking,Debit
+2024-08-18,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-08-20,COSTCO WHSE,Groceries,245.67,Credit Card,Debit
+2024-08-25,GYM MEMBERSHIP,Entertainment,45.00,Checking,Debit
+2024-09-01,WALMART GROCERY #4523,Groceries,125.67,Checking,Debit
+2024-09-01,NETFLIX,Entertainment,15.99,Credit Card,Debit
+2024-09-02,TARGET,Shopping,87.65,Credit Card,Debit
+2024-09-03,APARTMENT RENT,Rent,1500.00,Checking,Debit
+2024-09-04,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-09-05,CHEVRON,Transportation,52.34,Credit Card,Debit
+2024-09-06,WHOLEFDS MKT,Groceries,156.78,Credit Card,Debit
+2024-09-07,MOBILE PHONE BILL,Utilities,100.89,Checking,Debit
+2024-09-18,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-09-20,COSTCO WHSE,Groceries,267.89,Credit Card,Debit
+2024-09-25,GYM MEMBERSHIP,Entertainment,45.00,Checking,Debit
+2024-11-01,WALMART GROCERY #4523,Groceries,127.89,Checking,Debit
+2024-11-01,NETFLIX,Entertainment,15.99,Credit Card,Debit
+2024-11-02,TARGET,Shopping,95.67,Credit Card,Debit
+2024-11-03,APARTMENT RENT,Rent,1500.00,Checking,Debit
+2024-11-04,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-11-05,SHELL OIL #5678,Transportation,49.23,Credit Card,Debit
+2024-11-06,TRADER JOES #234,Groceries,85.67,Credit Card,Debit
+2024-11-07,COMCAST,Utilities,89.23,Checking,Debit
+2024-11-18,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-11-20,COSTCO WHSE,Groceries,256.78,Credit Card,Debit
+2024-11-25,GYM MEMBERSHIP,Entertainment,45.00,Checking,Debit

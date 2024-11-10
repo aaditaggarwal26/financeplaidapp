@@ -1,3 +1,4 @@
+import 'package:finsight/exports/transaction_exports.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:finsight/models/transaction.dart';
@@ -15,11 +16,14 @@ class _TransactionScreenState extends State<TransactionScreen> {
   bool isLoading = true;
   final TextEditingController _searchController = TextEditingController();
   List<Transaction> filteredTransactions = [];
+  String selectedMonth = DateFormat('MMMM yyyy').format(DateTime.now());
 
   String selectedCategory = 'All';
   String selectedTransactionType = 'All';
   bool isSearchMenuOpen = false;
   DateTimeRange? selectedDateRange;
+
+  final ScrollController _monthScrollController = ScrollController();
 
   @override
   void initState() {
@@ -27,13 +31,24 @@ class _TransactionScreenState extends State<TransactionScreen> {
     loadTransactions();
   }
 
-  Future<void> loadTransactions() async {
-    final dataService = DataService();
-    final loadedTransactions = await dataService.getTransactions();
+  List<String> _getAvailableMonths() {
+    final List<String> months = transactions
+        .map((t) => DateFormat('MMMM yyyy').format(t.date))
+        .toSet()
+        .toList()
+        .cast<String>();
+    return months.toList()
+      ..sort((a, b) {
+        final aDate = DateFormat('MMMM yyyy').parse(a);
+        final bDate = DateFormat('MMMM yyyy').parse(b);
+        return bDate.compareTo(aDate);
+      });
+  }
+
+  void _filterByMonth(String month) {
     setState(() {
-      transactions = loadedTransactions;
-      filteredTransactions = loadedTransactions;
-      isLoading = false;
+      selectedMonth = month;
+      _filterTransactions(_searchController.text);
     });
   }
 
@@ -63,11 +78,74 @@ class _TransactionScreenState extends State<TransactionScreen> {
                 transaction.date.isBefore(
                     selectedDateRange!.end.add(const Duration(days: 1))));
 
+        final matchesMonth =
+            DateFormat('MMMM yyyy').format(transaction.date) == selectedMonth;
+
         return matchesSearch &&
             matchesCategory &&
             matchesType &&
-            matchesDateRange;
+            matchesDateRange &&
+            matchesMonth;
       }).toList();
+    });
+  }
+
+  Widget _buildMonthSelector() {
+    final months = _getAvailableMonths();
+
+    return Container(
+      height: 40,
+      decoration: const BoxDecoration(
+        color: Color.fromARGB(0, 244, 67, 54),
+      ),
+      child: ListView.builder(
+        controller: _monthScrollController,
+        scrollDirection: Axis.horizontal,
+        itemCount: months.length,
+        itemBuilder: (context, index) {
+          final month = months[index];
+          final isSelected = month == selectedMonth;
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: ChoiceChip(
+              label: Text(
+                month,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : const Color(0xFF2B3A55),
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              selected: isSelected,
+              selectedColor: const Color(0xFFE5BA73),
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: isSelected
+                      ? const Color(0xFF2B3A55)
+                      : Colors.grey.shade300,
+                ),
+              ),
+              onSelected: (selected) {
+                if (selected) {
+                  _filterByMonth(month);
+                }
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> loadTransactions() async {
+    final dataService = DataService();
+    final loadedTransactions = await dataService.getTransactions();
+    setState(() {
+      transactions = loadedTransactions;
+      filteredTransactions = loadedTransactions;
+      isLoading = false;
     });
   }
 
@@ -87,6 +165,21 @@ class _TransactionScreenState extends State<TransactionScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDateRange: selectedDateRange,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            scaffoldBackgroundColor: Colors.white,
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: const Color(0xFF2B3A55),
+                  onPrimary: Colors.white,
+                  secondary: const Color(0xFF2B3A55),
+                  secondaryContainer: const Color(0xFFE5BA73).withOpacity(0.5),
+                  onSurface: Colors.black,
+                ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null) {
@@ -274,14 +367,37 @@ class _TransactionScreenState extends State<TransactionScreen> {
     return colors[category] ?? Colors.grey;
   }
 
-  void _handleDownload() {
-    //actually implement the logic
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Downloading transactions...'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+  void _handleDownload() async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Generating report...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      final exporter = TransactionExport(filteredTransactions);
+      await exporter.generateAndDownloadReport();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Report generated successfully!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating report: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _handleAddTransaction() {
@@ -316,11 +432,11 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
     final groupedTransactions = <String, List<Transaction>>{};
     for (var transaction in filteredTransactions) {
-      final monthKey = DateFormat('MMMM').format(transaction.date);
-      if (!groupedTransactions.containsKey(monthKey)) {
-        groupedTransactions[monthKey] = [];
+      final dateKey = DateFormat('MMMM d').format(transaction.date);
+      if (!groupedTransactions.containsKey(dateKey)) {
+        groupedTransactions[dateKey] = [];
       }
-      groupedTransactions[monthKey]!.add(transaction);
+      groupedTransactions[dateKey]!.add(transaction);
     }
 
     return Scaffold(
@@ -396,6 +512,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                 ],
               ),
             ),
+            _buildMonthSelector(),
             const SizedBox(height: 16),
             Expanded(
               child: Container(
@@ -417,10 +534,10 @@ class _TransactionScreenState extends State<TransactionScreen> {
                         padding: EdgeInsets.zero,
                         itemCount: groupedTransactions.length,
                         itemBuilder: (context, index) {
-                          final month =
+                          final date =
                               groupedTransactions.keys.elementAt(index);
-                          final monthTransactions = groupedTransactions[month]!;
-                          final totalSpend = monthTransactions
+                          final dayTransactions = groupedTransactions[date]!;
+                          final totalSpend = dayTransactions
                               .where((t) => t.transactionType == 'Debit')
                               .fold(0.0, (sum, t) => sum + t.amount);
 
@@ -434,7 +551,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                       MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      month,
+                                      date,
                                       style: const TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
@@ -451,8 +568,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                   ],
                                 ),
                               ),
-                              ...monthTransactions.map((transaction) =>
-                                  ListTile(
+                              ...dayTransactions.map((transaction) => ListTile(
                                     leading: Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
@@ -488,7 +604,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                     trailing: Text(
                                       transaction.transactionType == 'Credit'
                                           ? '+\$${transaction.amount.toStringAsFixed(2)}'
-                                          : '\$${transaction.amount.toStringAsFixed(2)}',
+                                          : '-\$${transaction.amount.toStringAsFixed(2)}',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         color: transaction.transactionType ==
@@ -513,6 +629,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _monthScrollController.dispose();
     super.dispose();
   }
 }
