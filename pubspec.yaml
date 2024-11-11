@@ -20,18 +20,29 @@ dependencies:
   firebase_auth: ^5.3.1
   provider: ^6.0.5
   shared_preferences: ^2.1.0
-  flutter_secure_storage: ^8.0.0
-  plaid_flutter: ^3.1.8
+  plaid_flutter: ^4.1.1
   google_sign_in: ^6.2.2
   collection: ^1.18.0
   pdf: ^3.11.1
   printing: ^5.13.4
   google_fonts: ^6.2.1
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
+flutter_native_splash:
+  color: "#ffffff"
+  image: "assets/images/logo_cropped.png"
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/logo_cropped.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true

@@ -1,6 +1,8 @@
 import 'package:finsight/models/account_balance.dart';
 import 'package:finsight/models/transaction.dart';
 import 'package:finsight/services/data_service.dart';
+import 'package:finsight/services/plaid_service.dart';
+import 'package:plaid_flutter/plaid_flutter.dart';
 import 'package:finsight/widgets/credit_card_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -255,6 +257,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Future<void> _handleAddAccount() async {
+    final linkToken = await PlaidIntegrationService.createLinkToken();
+
+    if (linkToken != null) {
+      print('Link Token: $linkToken');
+
+      LinkTokenConfiguration configuration = LinkTokenConfiguration(
+        token: linkToken,
+      );
+
+      /// Creates a internal handler for Plaid Link. A one-time use object used to open a Link session. Should always be called before open.
+
+      PlaidLink.create(configuration: configuration);
+
+      /// Open Plaid Link by calling open on the handler.
+
+      PlaidLink.open();
+
+      // Here you should implement the Plaid Link flow using the generated link token.
+
+      // Simulate user linking account and obtaining public token for now.
+
+      final publicToken =
+          linkToken; // This should be replaced by the real public token from Plaid Link
+
+      final accessToken =
+          await PlaidIntegrationService.exchangePublicToken(publicToken);
+
+      if (accessToken != null) {
+        print('Access Token: $accessToken');
+
+        await PlaidIntegrationService.fetchTransactions(accessToken);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
@@ -369,7 +407,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                             ),
                             TextButton(
-                              onPressed: () {},
+                              onPressed: _handleAddAccount,
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                               ),
@@ -391,13 +429,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         transactions,
                         latestBalance,
                       ),
-                      // _buildExpandableAccountItem(
-                      //   Icons.credit_card_outlined,
-                      //   'Card Balance',
-                      //   '\$${latestBalance.creditCardBalance.abs().toStringAsFixed(2)}',
-                      //   transactions,
-                      //   latestBalance,
-                      // ),
                       _buildExpandableAccountItem(
                         Icons.attach_money_outlined,
                         'Net Cash',
