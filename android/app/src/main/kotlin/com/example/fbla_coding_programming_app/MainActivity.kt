@@ -1,4 +1,4 @@
-package com.example.fbla_coding_programming_app
+package com.finsight.finsight
 
 import io.flutter.embedding.android.FlutterActivity
 

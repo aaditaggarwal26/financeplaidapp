@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "fbla_coding_programming_app" "\0"
+            VALUE "FileDescription", "finsight" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "fbla_coding_programming_app" "\0"
+            VALUE "InternalName", "finsight" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2024 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "fbla_coding_programming_app.exe" "\0"
-            VALUE "ProductName", "fbla_coding_programming_app" "\0"
+            VALUE "OriginalFilename", "finsight.exe" "\0"
+            VALUE "ProductName", "finsight" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

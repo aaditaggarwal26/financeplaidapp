@@ -43,7 +43,7 @@ flutter_native_splash:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/logo_cropped.png"
+  image_path: "assets/icon/icon.png"
   min_sdk_android: 21
 
 flutter:
@@ -58,3 +58,5 @@ flutter:
     - assets/images/logo_cropped.png
     - assets/images/google_logo.png
     - assets/fonts/Roboto-Regular.ttf
+    - assets/images/just_logo.png
+    - assets/icon/icon.png

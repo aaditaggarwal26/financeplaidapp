@@ -1,4 +1,4 @@
-# fbla_coding_programming_app
+# Finsight
 
 A new Flutter project.
 

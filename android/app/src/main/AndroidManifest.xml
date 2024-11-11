@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
-        android:label="fbla_coding_programming_app"
+        android:label="Finsight"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity
