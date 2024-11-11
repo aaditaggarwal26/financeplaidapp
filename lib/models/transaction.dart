@@ -6,6 +6,8 @@ class Transaction {
   final String account;
   final String transactionType;
   final String? cardId;
+  final bool isPersonal;
+  final String? id;
 
   Transaction({
     required this.date,
@@ -15,6 +17,8 @@ class Transaction {
     required this.account,
     required this.transactionType,
     this.cardId,
+    this.isPersonal = false,
+    this.id,
   });
 
   factory Transaction.fromCsv(Map<String, dynamic> map) {
@@ -26,6 +30,8 @@ class Transaction {
       account: map['Account'],
       transactionType: map['Transaction_Type'],
       cardId: map['Card_ID'],
+      isPersonal: false,
+      id: null,
     );
   }
 }

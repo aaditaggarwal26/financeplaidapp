@@ -1,4 +1,6 @@
 import 'package:finsight/exports/transaction_exports.dart';
+import 'package:finsight/screens/add_transactions_screen.dart';
+import 'package:finsight/screens/transaction_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:finsight/models/transaction.dart';
@@ -86,7 +88,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
             matchesType &&
             matchesDateRange &&
             matchesMonth;
-      }).toList();
+      }).toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
     });
   }
 
@@ -143,8 +146,9 @@ class _TransactionScreenState extends State<TransactionScreen> {
     final dataService = DataService();
     final loadedTransactions = await dataService.getTransactions();
     setState(() {
-      transactions = loadedTransactions;
-      filteredTransactions = loadedTransactions;
+      transactions = loadedTransactions
+        ..sort((a, b) => b.date.compareTo(a.date));
+      filteredTransactions = transactions;
       isLoading = false;
     });
   }
@@ -401,23 +405,41 @@ class _TransactionScreenState extends State<TransactionScreen> {
   }
 
   void _handleAddTransaction() {
-    //actually implement the logic
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: const Text('Add Transaction'),
-        content:
-            const Text('This is a placeholder for adding a new transaction.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Close',
-              style: TextStyle(color: Colors.black),
-            ),
-          ),
-        ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddTransactionScreen(
+          onAdd: (Transaction transaction) async {
+            try {
+              final dataService = DataService();
+              await dataService.appendTransaction(transaction);
+
+              setState(() {
+                transactions.add(transaction);
+                _filterTransactions(_searchController.text);
+              });
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Transaction added successfully'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error adding transaction: $e'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+            }
+          },
+        ),
       ),
     );
   }
@@ -569,6 +591,28 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                 ),
                               ),
                               ...dayTransactions.map((transaction) => ListTile(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              TransactionDetailScreen(
+                                            transaction: transaction,
+                                            onDelete: transaction.isPersonal
+                                                ? () {
+                                                    setState(() {
+                                                      transactions
+                                                          .remove(transaction);
+                                                      _filterTransactions(
+                                                          _searchController
+                                                              .text);
+                                                    });
+                                                  }
+                                                : null,
+                                          ),
+                                        ),
+                                      );
+                                    },
                                     leading: Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
