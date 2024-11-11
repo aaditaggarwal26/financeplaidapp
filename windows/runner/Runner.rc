@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
+            VALUE "CompanyName", "com.finsight" "\0"
             VALUE "FileDescription", "finsight" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "finsight" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2024 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2024 com.finsight. All rights reserved." "\0"
             VALUE "OriginalFilename", "finsight.exe" "\0"
             VALUE "ProductName", "finsight" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

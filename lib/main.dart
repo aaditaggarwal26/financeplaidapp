@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
-      title: 'FBLA Finance App',
+      title: 'Finsight',
       theme: ThemeData(primarySwatch: Colors.purple),
       home: LoginScreen(),
     );

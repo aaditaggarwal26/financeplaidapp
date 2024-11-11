@@ -69,6 +69,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '946317225084',
     projectId: 'finsight-a5027',
     storageBucket: 'finsight-a5027.firebasestorage.app',
-    iosBundleId: 'com.example.fblaCodingProgrammingApp',
+    iosBundleId: 'com.finsight.finsight',
   );
 }
