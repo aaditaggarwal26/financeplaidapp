@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:finsight/models/account_balance.dart';
+import 'package:finsight/models/checking_account.dart';
 import 'package:finsight/models/monthly_spending.dart';
 import 'package:finsight/models/transaction.dart';
 import 'package:finsight/models/credit_card.dart';
@@ -158,28 +159,6 @@ class DataService {
     }
   }
 
-  List<CreditCard> getCreditCards(
-      List<Transaction> transactions, AccountBalance balance) {
-    final secondaryTransactions = transactions
-        .where((t) => t.account == 'Credit Card' && t.cardId == 'secondary')
-        .toList();
-
-    double secondaryBalance = 0;
-    if (secondaryTransactions.isNotEmpty) {
-      secondaryBalance = secondaryTransactions
-          .map((t) => t.transactionType == 'Debit' ? t.amount : -t.amount)
-          .reduce((a, b) => a + b);
-    }
-
-    final cards = [CreditCard.primary(balance.creditCardBalance)];
-
-    if (secondaryTransactions.isNotEmpty) {
-      cards.add(CreditCard.secondary(secondaryBalance));
-    }
-
-    return cards;
-  }
-
   Future<List<MonthlySpending>> getMonthlySpending() async {
     try {
       final String data = await rootBundle
@@ -249,5 +228,79 @@ class DataService {
       print('Error parsing double value "$value": $e');
       return 0.0;
     }
+  }
+
+  Future<List<CheckingAccount>> getCheckingAccounts() async {
+    try {
+      final String data =
+          await rootBundle.loadString('assets/data/checking_accounts.csv');
+      List<List<dynamic>> csvTable = const CsvToListConverter().convert(
+        data,
+        eol: '\n',
+        fieldDelimiter: ',',
+      );
+
+      List<CheckingAccount> accounts = [];
+      if (csvTable.length > 1) {
+        for (var i = 1; i < csvTable.length; i++) {
+          var row = csvTable[i];
+          accounts.add(CheckingAccount(
+            name: row[0].toString(),
+            accountNumber: row[1].toString(),
+            balance: double.parse(row[2].toString()),
+            type: row[3].toString(),
+            bankName: row[4].toString(),
+          ));
+        }
+      }
+
+      return accounts;
+    } catch (e) {
+      print('Error loading checking accounts: $e');
+      return [];
+    }
+  }
+
+  Future<List<CreditCard>> getCreditCards() async {
+    try {
+      final String data =
+          await rootBundle.loadString('assets/data/credit_cards.csv');
+      List<List<dynamic>> csvTable = const CsvToListConverter().convert(
+        data,
+        eol: '\n',
+        fieldDelimiter: ',',
+      );
+
+      List<CreditCard> cards = [];
+      if (csvTable.length > 1) {
+        for (var i = 1; i < csvTable.length; i++) {
+          var row = csvTable[i];
+          cards.add(CreditCard(
+            name: row[0].toString(),
+            lastFour: row[1].toString(),
+            balance: double.parse(row[2].toString()),
+            creditLimit: double.parse(row[3].toString()),
+            apr: double.parse(row[4].toString()),
+            bankName: row[5].toString(),
+          ));
+        }
+      }
+
+      return cards;
+    } catch (e) {
+      print('Error loading credit cards: $e');
+      return [];
+    }
+  }
+
+  Future<double> getNetCash() async {
+    final checkingAccounts = await getCheckingAccounts();
+    final creditCards = await getCreditCards();
+
+    double totalChecking =
+        checkingAccounts.fold(0, (sum, account) => sum + account.balance);
+    double totalCredit = creditCards.fold(0, (sum, card) => sum + card.balance);
+
+    return totalChecking - totalCredit;
   }
 }

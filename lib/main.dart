@@ -25,7 +25,6 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       navigatorKey: navigatorKey,
       title: 'Finsight',
-      theme: ThemeData(primarySwatch: Colors.purple),
       home: LoginScreen(),
     );
   }

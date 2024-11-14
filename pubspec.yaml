@@ -54,6 +54,8 @@ flutter:
     - assets/data/credit_score.csv
     - assets/data/monthly_cashflow.csv
     - assets/data/transactions.csv
+    - assets/data/checking_accounts.csv
+    - assets/data/credit_cards.csv
     - assets/images/logo.png
     - assets/images/logo_cropped.png
     - assets/images/google_logo.png

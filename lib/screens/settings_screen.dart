@@ -99,13 +99,13 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ],
-          _buildSettingsSection('PREFERENCES', [
-            _buildSettingsTile(
-              icon: Icons.notifications_outlined,
-              title: 'Notifications',
-              onTap: () {},
-            ),
-          ]),
+          // _buildSettingsSection('PREFERENCES', [
+          //   _buildSettingsTile(
+          //     icon: Icons.notifications_outlined,
+          //     title: 'Notifications',
+          //     onTap: () {},
+          //   ),
+          // ]),
           _buildSettingsSection('SUPPORT', [
             _buildSettingsTile(
               icon: Icons.help_outline,

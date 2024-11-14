@@ -1,9 +1,10 @@
 import 'package:finsight/models/account_balance.dart';
+import 'package:finsight/models/checking_account.dart';
+import 'package:finsight/models/credit_card.dart';
 import 'package:finsight/models/transaction.dart';
 import 'package:finsight/services/data_service.dart';
 import 'package:finsight/services/plaid_service.dart';
 import 'package:plaid_flutter/plaid_flutter.dart';
-import 'package:finsight/widgets/credit_card_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -14,12 +15,14 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with AutomaticKeepAliveClientMixin {
   final PageController _pageController = PageController();
   final DataService _dataService = DataService();
   late Future<List<AccountBalance>> _balancesFuture;
   late Future<List<Transaction>> _transactionsFuture;
   int _currentPage = 0;
+  static bool _hasLoadedData = false;
 
   Map<String, bool> _expandedSections = {
     'Checking': false,
@@ -29,10 +32,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
   };
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
-    _balancesFuture = _dataService.getAccountBalances();
-    _transactionsFuture = _dataService.getTransactions();
+    _initializeData();
+  }
+
+  void _initializeData() {
+    if (!_hasLoadedData) {
+      // Only initialize with empty state on first load
+      setState(() {
+        _balancesFuture = Future.value([]);
+        _transactionsFuture = Future.value([]);
+      });
+    } else {
+      // Load data if we've already shown it before
+      _loadData();
+    }
+  }
+
+  void _loadData() {
+    setState(() {
+      _balancesFuture = _dataService.getAccountBalances();
+      _transactionsFuture = _dataService.getTransactions();
+      _hasLoadedData = true;
+    });
+  }
+
+  void _refreshData() {
+    _loadData();
   }
 
   @override
@@ -41,12 +71,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  Widget _buildEmptyState() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Image.asset(
+          'assets/images/logo_cropped.png',
+          height: 200,
+          width: 200,
+        ),
+        const SizedBox(height: 20),
+        const Center(
+          child: Text('It seems like you have no accounts connected!'),
+        ),
+        const Center(
+          child: Text('Connect an account now to get start.'),
+        ),
+      ],
+    );
+  }
+
   Widget _buildGraphCard({required bool isSpending}) {
     return Card(
       color: Colors.white,
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: const Color(0xFF2B3A55).withOpacity(0.1),
+          width: 1,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -163,7 +217,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         if (_expandedSections[title]!)
-          _buildExpandedSection(title, transactions, balance),
+          Container(
+            color: const Color(0xFFE5BA73).withOpacity(0.05),
+            child: _buildExpandedSection(title, transactions, balance),
+          ),
       ],
     );
   }
@@ -175,38 +232,170 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ) {
     switch (title) {
       case 'Checking':
-        return _buildTransactionsList(
-          transactions.where((t) => t.account == 'Checking').toList(),
-        );
-      case 'Card Balance':
-        final cards = _dataService.getCreditCards(transactions, balance);
-        return Column(
-          children: cards.map((card) {
-            final cardTransactions = transactions
-                .where((t) => t.account == 'Credit Card' && t.cardId == card.id)
-                .toList();
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: CreditCardWidget(
-                card: card,
-                recentTransactions: cardTransactions,
-              ),
+        return FutureBuilder<List<CheckingAccount>>(
+          future: _dataService.getCheckingAccounts(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return Column(
+              children: snapshot.data!
+                  .map((account) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 32, vertical: 8),
+                        child: Card(
+                          color: Colors.white,
+                          child: ListTile(
+                            title: Text(account.name),
+                            subtitle:
+                                Text('${account.bankName} - ${account.type}'),
+                            trailing: Text(
+                              '\$${account.balance.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ))
+                  .toList(),
             );
-          }).toList(),
+          },
         );
-      case 'Net Cash':
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                  'Total Cash: \$${(balance.checking + balance.savings).toStringAsFixed(2)}'),
-              const SizedBox(height: 8),
-              Text('Checking: \$${balance.checking.toStringAsFixed(2)}'),
-              Text('Savings: \$${balance.savings.toStringAsFixed(2)}'),
-            ],
-          ),
+
+      case 'Card Balance':
+        return FutureBuilder<List<CreditCard>>(
+          future: _dataService.getCreditCards(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return Column(
+              children: snapshot.data!
+                  .map((card) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 32, vertical: 8),
+                        child: Card(
+                          color: Colors.white,
+                          elevation: 1,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(
+                              color: Color(0xFF2B3A55),
+                              width: 0.5,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      card.name,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      '-\$${card.balance.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '${card.bankName} •••• ${card.lastFour}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                            child: LinearProgressIndicator(
+                                              value: card.balance /
+                                                  card.creditLimit,
+                                              backgroundColor: Colors.grey[200],
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                card.balance /
+                                                            card.creditLimit >
+                                                        0.7
+                                                    ? Colors.red
+                                                    : const Color(0xFFE5BA73),
+                                              ),
+                                              minHeight: 8,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Credit Used: ${((card.balance / card.creditLimit) * 100).toStringAsFixed(1)}%',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          'Credit Limit',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                        Text(
+                                          '\$${card.creditLimit.toStringAsFixed(0)}',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'APR: ${card.apr}%',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            );
+          },
         );
       case 'Investments':
         return Padding(
@@ -222,39 +411,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       default:
         return const SizedBox();
     }
-  }
-
-  Widget _buildTransactionsList(List<Transaction> transactions) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        children: transactions
-            .take(5)
-            .map((t) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          t.description,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        '\$${t.amount.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: t.transactionType == 'Credit'
-                              ? Colors.green
-                              : Colors.black,
-                        ),
-                      ),
-                    ],
-                  ),
-                ))
-            .toList(),
-      ),
-    );
   }
 
   Future<void> _handleAddAccount() async {
@@ -295,9 +451,95 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required by AutomaticKeepAliveClientMixin
+
     return FutureBuilder(
       future: Future.wait([_balancesFuture, _transactionsFuture]),
       builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+        if (!_hasLoadedData) {
+          return Scaffold(
+            backgroundColor: Colors.white,
+            body: Column(
+              children: [
+                Container(
+                  padding: EdgeInsets.only(
+                    top: MediaQuery.of(context).padding.top,
+                    bottom: 16,
+                    left: 16,
+                    right: 16,
+                  ),
+                  color: const Color(0xFF2B3A55),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        DateFormat('E, MMM d').format(DateTime.now()),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        SizedBox(height: 300, child: _buildEmptyState()),
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'ACCOUNTS',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  letterSpacing: 1,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.refresh,
+                                        color: Color(0xFF2B3A55)),
+                                    onPressed:
+                                        _loadData, // Changed from _refreshData to _loadData
+                                  ),
+                                  TextButton(
+                                    onPressed: _handleAddAccount,
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                    child: const Text(
+                                      'Add Account',
+                                      style: TextStyle(
+                                        color: Color(0xFF2B3A55),
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        _buildEmptyAccountItem('Checking'),
+                        _buildEmptyAccountItem('Card Balance'),
+                        _buildEmptyAccountItem('Net Cash'),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         if (!snapshot.hasData || snapshot.data == null) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
@@ -406,18 +648,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 color: Colors.grey,
                               ),
                             ),
-                            TextButton(
-                              onPressed: _handleAddAccount,
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                              ),
-                              child: const Text(
-                                'Add Account',
-                                style: TextStyle(
-                                  color: Color(0xFF2B3A55),
-                                  decoration: TextDecoration.underline,
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.refresh,
+                                      color: Color(0xFF2B3A55)),
+                                  onPressed: _refreshData,
                                 ),
-                              ),
+                                TextButton(
+                                  onPressed: _handleAddAccount,
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                  child: const Text(
+                                    'Add Account',
+                                    style: TextStyle(
+                                      color: Color(0xFF2B3A55),
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -430,19 +681,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         latestBalance,
                       ),
                       _buildExpandableAccountItem(
-                        Icons.attach_money_outlined,
-                        'Net Cash',
-                        '\$${(latestBalance.checking + latestBalance.savings).toStringAsFixed(2)}',
+                        Icons.credit_card_outlined,
+                        'Card Balance',
+                        '\$${latestBalance.creditCardBalance.toStringAsFixed(2)}',
                         transactions,
                         latestBalance,
-                        amountColor: Colors.green,
+                        amountColor: Colors.red,
                       ),
-                      _buildExpandableAccountItem(
-                        Icons.show_chart_outlined,
-                        'Investments',
-                        '\$${latestBalance.investmentAccount.toStringAsFixed(2)}',
-                        transactions,
-                        latestBalance,
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.attach_money_outlined,
+                                color: const Color(0xFF2B3A55), size: 24),
+                            const SizedBox(width: 16),
+                            const Text(
+                              'Net Cash',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '\$${(latestBalance.checking + latestBalance.creditCardBalance).toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.green,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.show_chart_outlined,
+                                color: const Color(0xFF2B3A55), size: 24),
+                            const SizedBox(width: 16),
+                            const Text(
+                              'Investments',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '\$${latestBalance.investmentAccount.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -452,6 +747,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildEmptyAccountItem(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(
+            title == 'Checking'
+                ? Icons.home_outlined
+                : title == 'Card Balance'
+                    ? Icons.credit_card_outlined
+                    : Icons.attach_money_outlined,
+            color: const Color(0xFF2B3A55),
+            size: 24,
+          ),
+          const SizedBox(width: 16),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 16),
+          ),
+          const Spacer(),
+          const Text(
+            'N/A',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
