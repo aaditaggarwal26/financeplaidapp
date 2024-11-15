@@ -7,6 +7,8 @@ import 'package:finsight/services/plaid_service.dart';
 import 'package:plaid_flutter/plaid_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'dart:math';
+import 'dart:ui' as ui;
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -242,7 +244,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               children: snapshot.data!
                   .map((account) => Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 32, vertical: 8),
+                            horizontal: 14, vertical: 8),
                         child: Card(
                           color: Colors.white,
                           child: ListTile(
@@ -275,7 +277,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               children: snapshot.data!
                   .map((card) => Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 32, vertical: 8),
+                            horizontal: 14, vertical: 8),
                         child: Card(
                           color: Colors.white,
                           elevation: 1,
@@ -398,15 +400,197 @@ class _DashboardScreenState extends State<DashboardScreen>
           },
         );
       case 'Investments':
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                  'Total Investment: \$${balance.investmentAccount.toStringAsFixed(2)}'),
-            ],
-          ),
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Card(
+                color: Colors.white,
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(
+                    color: Color(0xFF2B3A55),
+                    width: 0.5,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            '401(k) Account',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '\$45,000.00',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Plaid Target Retirement 2055',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.arrow_upward,
+                                      color: Colors.green,
+                                      size: 14,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '8.5% YTD Return',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Card(
+                color: Colors.white,
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(
+                    color: Color(0xFF2B3A55),
+                    width: 0.5,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Certificate of Deposit',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '\$10,435.62',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '1-Year CD @ 4.5% APY',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Projected Growth',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 200,
+                        child: CustomPaint(
+                          size: const Size(double.infinity, 200),
+                          painter: CDGrowthPainter(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Initial Investment',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const Text(
+                                '\$10,000.00',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                'Total Earnings',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const Text(
+                                '+\$435.62',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       default:
         return const SizedBox();
@@ -714,30 +898,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.show_chart_outlined,
-                                color: const Color(0xFF2B3A55), size: 24),
-                            const SizedBox(width: 16),
-                            const Text(
-                              'Investments',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                            const Spacer(),
-                            Text(
-                              '\$${latestBalance.investmentAccount.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
+                      _buildExpandableAccountItem(
+                        Icons.show_chart_outlined,
+                        'Investments',
+                        '\$${55435.62}',
+                        transactions,
+                        latestBalance,
                       ),
                     ],
                   ),
@@ -841,6 +1007,246 @@ class CreditScoreGraphPainter extends CustomPainter {
 
     canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
+}
+
+class CDGrowthPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF2B3A55)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    // Define padding for labels
+    const double leftPadding = 60.0;
+    const double bottomPadding = 40.0;
+    const double topPadding = 20.0;
+    const double rightPadding = 20.0;
+
+    final graphSize = Size(
+      size.width - leftPadding - rightPadding,
+      size.height - bottomPadding - topPadding,
+    );
+
+    // Calculate values
+    final DateTime now = DateTime.now();
+    final int currentYear = now.year;
+    final int yearsUntilRetirement = 2055 - currentYear;
+    const initialAmount = 10000.0;
+    const currentAmount = 10435.62;
+    const apr = 0.045;
+    final retirementAmount = initialAmount * pow(1 + apr, yearsUntilRetirement);
+
+    // Create text painters
+    final textStyle = TextStyle(
+      color: Colors.grey[600],
+      fontSize: 10,
+    );
+
+    // Draw Y-axis labels
+    void drawYAxisLabel(double value, double y) {
+      final textSpan = TextSpan(
+        text: '\$${NumberFormat('#,###').format(value)}',
+        style: textStyle,
+      );
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(5, y - textPainter.height / 2),
+      );
+    }
+
+    // Draw grid and axes
+    final gridPaint = Paint()
+      ..color = Colors.grey.withOpacity(0.2)
+      ..strokeWidth = 1;
+
+    // Draw Y-axis line
+    canvas.drawLine(
+      Offset(leftPadding, topPadding),
+      Offset(leftPadding, size.height - bottomPadding),
+      paint,
+    );
+
+    // Draw X-axis line
+    canvas.drawLine(
+      Offset(leftPadding, size.height - bottomPadding),
+      Offset(size.width - rightPadding, size.height - bottomPadding),
+      paint,
+    );
+
+    // Draw horizontal grid lines and Y-axis labels
+    final yLabelCount = 5;
+    for (int i = 0; i <= yLabelCount; i++) {
+      final y = topPadding + (graphSize.height * i / yLabelCount);
+      final value = retirementAmount -
+          ((retirementAmount - initialAmount) * i / yLabelCount);
+
+      // Draw grid line
+      canvas.drawLine(
+        Offset(leftPadding, y),
+        Offset(size.width - rightPadding, y),
+        gridPaint,
+      );
+
+      // Draw label
+      drawYAxisLabel(value, y);
+    }
+
+    // Draw vertical grid lines and X-axis labels
+    final xLabelCount = 4;
+    for (int i = 0; i <= xLabelCount; i++) {
+      final x = leftPadding + (graphSize.width * i / xLabelCount);
+      final year = currentYear + (yearsUntilRetirement * i / xLabelCount);
+
+      // Draw grid line
+      canvas.drawLine(
+        Offset(x, topPadding),
+        Offset(x, size.height - bottomPadding),
+        gridPaint,
+      );
+
+      // Draw year label
+      final textSpan = TextSpan(
+        text: year.toStringAsFixed(0),
+        style: textStyle,
+      );
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(x - textPainter.width / 2, size.height - bottomPadding + 10),
+      );
+    }
+
+    // Calculate and draw the curve points
+    final List<Offset> points = [];
+
+    // Initial point (2024)
+    points.add(Offset(
+      leftPadding,
+      size.height -
+          bottomPadding -
+          (initialAmount / retirementAmount * graphSize.height),
+    ));
+
+    // Current point (slightly after start)
+    points.add(Offset(
+      leftPadding + graphSize.width * 0.1,
+      size.height -
+          3 -
+          bottomPadding -
+          (currentAmount / retirementAmount * graphSize.height),
+    ));
+
+    // Generate curve points
+    for (int i = 1; i <= 50; i++) {
+      final progress = i / 50;
+      final year = progress * yearsUntilRetirement;
+      final amount = initialAmount * pow(1 + apr, year);
+
+      points.add(Offset(
+        leftPadding + graphSize.width * progress,
+        size.height -
+            bottomPadding -
+            (amount / retirementAmount * graphSize.height),
+      ));
+    }
+
+    // Draw the curve
+    final path = Path();
+    path.moveTo(points[0].dx, points[0].dy);
+    for (int i = 1; i < points.length; i++) {
+      path.lineTo(points[i].dx, points[i].dy);
+    }
+
+    // Fill area under curve
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          const Color(0xFF2B3A55).withOpacity(0.2),
+          const Color(0xFF2B3A55).withOpacity(0.05),
+        ],
+      ).createShader(Rect.fromLTWH(
+        leftPadding,
+        topPadding,
+        graphSize.width,
+        graphSize.height,
+      ))
+      ..style = PaintingStyle.fill;
+
+    final fillPath = Path.from(path)
+      ..lineTo(points.last.dx, size.height - bottomPadding)
+      ..lineTo(leftPadding, size.height - bottomPadding)
+      ..close();
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, paint);
+
+    // Draw point markers and labels
+    final markerPaint = Paint()
+      ..color = const Color(0xFF2B3A55)
+      ..style = PaintingStyle.fill;
+
+    void drawPointLabel(
+        String label, double value, Offset point, bool isAbove) {
+      final textSpan = TextSpan(
+        text: '\$${NumberFormat('#,###').format(value)}',
+        style: const TextStyle(
+          color: Color(0xFF2B3A55),
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
+      textPainter.layout();
+
+      final labelOffset = isAbove
+          ? Offset(point.dx - textPainter.width / 2, point.dy - 20)
+          : Offset(point.dx - textPainter.width / 2, point.dy + 10);
+
+      canvas.drawCircle(point, 4, markerPaint);
+      textPainter.paint(canvas, labelOffset);
+
+      // Draw the label text
+      final labelTextSpan = TextSpan(
+        text: label,
+        style: TextStyle(
+          color: Colors.grey[600],
+          fontSize: 9,
+        ),
+      );
+      final labelTextPainter = TextPainter(
+        text: labelTextSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
+      labelTextPainter.layout();
+      final textOffset = isAbove
+          ? Offset(point.dx - labelTextPainter.width / 2, point.dy - 32)
+          : Offset(point.dx - labelTextPainter.width / 2, point.dy + 24);
+      labelTextPainter.paint(canvas, textOffset);
+    }
+
+    // Draw labeled points
+    drawPointLabel('Initial', initialAmount, points[0], true);
+    drawPointLabel('Current', currentAmount, points[1], false);
+    drawPointLabel('Retirement', retirementAmount, points.last, true);
   }
 
   @override

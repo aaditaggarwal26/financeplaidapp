@@ -13,7 +13,7 @@ class MonthlySpending {
   final double healthcare;
   final double insurance;
   final double miscellaneous;
-  final double? income;
+  final double? earnings;
   final AccountBalance? accountBalance;
 
   MonthlySpending({
@@ -28,7 +28,7 @@ class MonthlySpending {
     required this.healthcare,
     required this.insurance,
     required this.miscellaneous,
-    this.income,
+    this.earnings,
     this.accountBalance,
   });
 
@@ -43,6 +43,8 @@ class MonthlySpending {
       healthcare +
       insurance +
       miscellaneous;
+
+  double? get income => earnings;
 
   Map<String, double> get categoryBreakdown => {
         'Groceries': groceries,

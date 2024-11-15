@@ -149,83 +149,141 @@ class _SpendingScreenState extends State<SpendingScreen> {
                   padding: EdgeInsets.zero,
                   children: [
                     Container(
-                      height: 160,
+                      height: 200, // Increased height to accommodate legend
                       padding: const EdgeInsets.all(16),
-                      child: BarChart(
-                        BarChartData(
-                          alignment: BarChartAlignment.spaceAround,
-                          maxY: monthlySpending
-                                  .map((s) => s.totalSpent)
-                                  .reduce((a, b) => a > b ? a : b) *
-                              1.2,
-                          barTouchData: BarTouchData(enabled: false),
-                          titlesData: FlTitlesData(
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 40,
-                                getTitlesWidget: (value, meta) {
-                                  return Text(
-                                    '\$${(value / 1000).toStringAsFixed(1)}k',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                getTitlesWidget: (value, meta) {
-                                  if (value.toInt() >= monthlySpending.length) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return Text(
-                                    DateFormat('MMM').format(
-                                        monthlySpending[value.toInt()].date),
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            rightTitles: const AxisTitles(),
-                            topTitles: const AxisTitles(),
+                      child: Column(
+                        children: [
+                          // Legend
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildLegendItem(
+                                  'Spending', const Color(0xFF2B3A55)),
+                              const SizedBox(width: 24),
+                              _buildLegendItem(
+                                  'Income', const Color(0xFFE5BA73)),
+                            ],
                           ),
-                          borderData: FlBorderData(show: false),
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: false,
-                            horizontalInterval: 1000,
-                            getDrawingHorizontalLine: (value) {
-                              return FlLine(
-                                color: Colors.grey.withOpacity(0.2),
-                                strokeWidth: 1,
-                              );
-                            },
-                          ),
-                          barGroups:
-                              monthlySpending.asMap().entries.map((entry) {
-                            return BarChartGroupData(
-                              x: entry.key,
-                              barRods: [
-                                BarChartRodData(
-                                  toY: entry.value.totalSpent,
-                                  color: entry.key == selectedMonthIndex
-                                      ? const Color(0xFF2B3A55)
-                                      : const Color(0xFF2B3A55)
-                                          .withOpacity(0.3),
-                                  width: 8,
-                                  borderRadius: BorderRadius.circular(2),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: BarChart(
+                              BarChartData(
+                                alignment: BarChartAlignment.spaceAround,
+                                maxY: monthlySpending
+                                        .map((s) => s.income ?? 0)
+                                        .reduce((a, b) => a > b ? a : b) *
+                                    1.2,
+                                barTouchData: BarTouchData(
+                                  touchTooltipData: BarTouchTooltipData(
+                                    getTooltipItem:
+                                        (group, groupIndex, rod, rodIndex) {
+                                      String label =
+                                          rod.color == const Color(0xFF2B3A55)
+                                              ? 'Spent'
+                                              : 'Earned';
+                                      double value =
+                                          monthlySpending[group.x.toInt()]
+                                              .totalSpent;
+                                      if (rod.color ==
+                                          const Color(0xFFE5BA73)) {
+                                        value = monthlySpending[group.x.toInt()]
+                                                .income ??
+                                            0;
+                                      }
+                                      return BarTooltipItem(
+                                        '$label:\n${NumberFormat.currency(symbol: '\$').format(value)}',
+                                        const TextStyle(color: Colors.black),
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ],
-                            );
-                          }).toList(),
-                        ),
+                                titlesData: FlTitlesData(
+                                  leftTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      reservedSize: 40,
+                                      getTitlesWidget: (value, meta) {
+                                        return Text(
+                                          '\$${(value / 1000).toStringAsFixed(1)}k',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      getTitlesWidget: (value, meta) {
+                                        if (value.toInt() >=
+                                            monthlySpending.length) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return Text(
+                                          DateFormat('MMM').format(
+                                              monthlySpending[value.toInt()]
+                                                  .date),
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  rightTitles: const AxisTitles(),
+                                  topTitles: const AxisTitles(),
+                                ),
+                                borderData: FlBorderData(show: false),
+                                gridData: FlGridData(
+                                  show: true,
+                                  drawVerticalLine: false,
+                                  horizontalInterval: 1000,
+                                  getDrawingHorizontalLine: (value) {
+                                    return FlLine(
+                                      color: Colors.grey.withOpacity(0.2),
+                                      strokeWidth: 1,
+                                    );
+                                  },
+                                ),
+                                barGroups: monthlySpending
+                                    .asMap()
+                                    .entries
+                                    .map((entry) {
+                                  final double width = 8;
+                                  final double gap = 4;
+                                  return BarChartGroupData(
+                                    x: entry.key,
+                                    groupVertically: false,
+                                    barRods: [
+                                      BarChartRodData(
+                                        toY: entry.value.totalSpent,
+                                        color: entry.key == selectedMonthIndex
+                                            ? const Color(0xFF2B3A55)
+                                            : const Color(0xFF2B3A55)
+                                                .withOpacity(0.3),
+                                        width: width,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                      BarChartRodData(
+                                        toY: entry.value.income ?? 0,
+                                        color: entry.key == selectedMonthIndex
+                                            ? const Color(0xFFE5BA73)
+                                            : const Color(0xFFE5BA73)
+                                                .withOpacity(0.3),
+                                        width: width,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ],
+                                    barsSpace: gap,
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     Padding(
@@ -346,6 +404,30 @@ class _SpendingScreenState extends State<SpendingScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+          ),
+        ),
+      ],
     );
   }
 
