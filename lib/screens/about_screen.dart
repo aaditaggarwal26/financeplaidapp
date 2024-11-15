@@ -7,145 +7,174 @@ class AboutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF2B3A55),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'About Finsight',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(height: 80),
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.all(16.0),
-                  child: const Text(
-                    'FinSight is a modern finance management app designed to make tracking your expenses, managing your income, and achieving financial goals easier than ever. With a user-friendly interface, FinSight is accessible to users of all backgrounds, providing powerful tools to effortlessly understand your financial landscape.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Features',
-                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Image.asset(
+                    'assets/images/logo_cropped.png',
+                    height: 100,
+                    width: 100,
+                    fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.all(16.0),
-                  child: const Text(
-                    '- Link bank accounts securely and track transactions in real-time using Plaid integration.
-- Set personalized financial goals and monitor progress effortlessly.
-- Get detailed reports on your spending patterns and receive insights to help you save more effectively.
-- Access intuitive visualizations, such as charts and graphs, for a better understanding of your finances.
-- Benefit from Firebase-backed secure login and data storage, ensuring your information is always safe.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Benefits',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.all(16.0),
-                  child: const Text(
-                    '- Easy to use for individuals of all ages, making finance management accessible to everyone.
-- Secure integration with Firebase for reliable data storage and authentication.
-- Comprehensive budgeting tools to help you manage spending and save towards your goals.
-- Gain financial clarity and reduce the stress of managing money by seeing all your accounts in one place.
-- Real-time updates on your financial status, giving you up-to-date insights at your fingertips.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Meet the Developers',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.all(16.0),
-                  child: const Text(
-                    'FinSight was created by Aadit Aggarwal and Ritvik Bansal, two passionate developers dedicated to making financial literacy and management accessible to everyone.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Center(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      primary: const Color(0xFFE5BA73),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                    onPressed: () {
-                      // Placeholderr
-                    },
-                    child: const Text(
-                      'Learn More',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'About FinSight',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Your all-in-one finance management solution for effortless expense tracking and smart financial planning.',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSection(
+                      'Key Features',
+                      [
+                        'Real-time bank sync with Plaid',
+                        'Personalized financial goals',
+                        'Detailed spending analytics',
+                        'Smart budgeting tools',
+                        'Secure Firebase authentication',
+                      ],
+                      Icons.star_outline,
+                    ),
+                    const SizedBox(height: 24),
+                    _buildSection(
+                      'Why FinSight?',
+                      [
+                        'Simple, intuitive interface',
+                        'Comprehensive financial overview',
+                        'Real-time transaction updates',
+                        'Data-driven insights',
+                        'Bank-level security',
+                      ],
+                      Icons.lightbulb_outline,
+                    ),
+                    const SizedBox(height: 24),
+                    _buildSection(
+                      'Developers',
+                      [
+                        'Created by Ritvik Bansal and Aadit Aggarwal',
+                        'Committed to making financial management accessible to everyone',
+                      ],
+                      Icons.people_outline,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSection(String title, List<String> items, IconData icon) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              icon,
+              color: const Color(0xFF2B3A55),
+              size: 24,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Color(0xFF2B3A55),
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2B3A55).withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: items
+                .map((item) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '•',
+                            style: TextStyle(
+                              color: Color(0xFF2B3A55),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              item,
+                              style: const TextStyle(
+                                color: Color(0xFF2B3A55),
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ))
+                .toList(),
+          ),
+        ),
+      ],
     );
   }
 }

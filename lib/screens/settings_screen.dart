@@ -1,3 +1,4 @@
+import 'package:finsight/screens/about_screen.dart';
 import 'package:finsight/screens/help_qna_screen.dart';
 import 'package:finsight/screens/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -122,7 +123,14 @@ class SettingsScreen extends StatelessWidget {
             _buildSettingsTile(
               icon: Icons.info_outline,
               title: 'About',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AboutScreen(),
+                  ),
+                );
+              },
             ),
           ]),
           _buildSettingsSection('ACCOUNT', [
