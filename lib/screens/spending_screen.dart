@@ -72,7 +72,6 @@ class _SpendingScreenState extends State<SpendingScreen> {
                             monthlySpending, context);
 
                         if (context.mounted) {
-                          Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                                 content: Text('Report generated successfully')),
@@ -80,7 +79,6 @@ class _SpendingScreenState extends State<SpendingScreen> {
                         }
                       } catch (e) {
                         if (context.mounted) {
-                          Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                                 content: Text(
