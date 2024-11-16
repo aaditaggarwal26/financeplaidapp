@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -26,7 +25,6 @@ class PlaidIntegrationService {
       'products': ['transactions'],
       'country_codes': ['US'],
       'language': 'en',
-      'redirect_uri': _redirectUri, // Redirect URI as configured
     });
 
     try {
@@ -36,7 +34,6 @@ class PlaidIntegrationService {
         return data['link_token'];
       } else {
         print('Failed to create link token: ${response.statusCode}');
-        print('Response body: ${response.body}'); // Detailed error output
       }
     } catch (error) {
       print('Error creating link token: $error');
@@ -63,7 +60,6 @@ class PlaidIntegrationService {
         return data['access_token'];
       } else {
         print('Failed to exchange public token: ${response.statusCode}');
-        print('Response body: ${response.body}'); // Log response body
       }
     } catch (error) {
       print('Error exchanging public token: $error');
@@ -96,10 +92,29 @@ class PlaidIntegrationService {
         print('Transactions: ${data['transactions']}');
       } else {
         print('Failed to fetch transactions: ${response.statusCode}');
-        print('Response body: ${response.body}'); // Detailed error output
       }
     } catch (error) {
       print('Error fetching transactions: $error');
     }
   }
 }
+/*
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final linkToken = await PlaidIntegrationService.createLinkToken();
+  if (linkToken != null) {
+    print('Link Token: $linkToken');
+
+    // Simulate user linking their account to obtain a public token
+    // This part should involve the Plaid Link integration, which is done via the frontend.
+    // Assuming you have successfully obtained a public token, let's exchange it.
+
+    final publicToken = linkToken; // Replace with your real public token obtained via Plaid Link
+    final accessToken = await PlaidIntegrationService.exchangePublicToken(publicToken);
+    if (accessToken != null) {
+      print('Access Token: $accessToken');
+      await PlaidIntegrationService.fetchTransactions(accessToken);
+    }
+  }
+}
+*/
