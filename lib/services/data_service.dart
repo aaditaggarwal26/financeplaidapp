@@ -24,7 +24,6 @@ class DataService {
 
   Future<void> _initializeLocalFile() async {
     final file = await _localFile;
-    print('Initializing local file at: ${file.path}');
     final exists = await file.exists();
 
     if (!exists) {

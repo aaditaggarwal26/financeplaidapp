@@ -17,6 +17,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
   List<MonthlySpending> monthlySpending = [];
   bool isLoading = true;
   int selectedMonthIndex = 0;
+  int displayStartIndex = 0;
 
   @override
   void initState() {
@@ -30,8 +31,22 @@ class _SpendingScreenState extends State<SpendingScreen> {
     setState(() {
       monthlySpending = spending;
       selectedMonthIndex = spending.length - 1;
+      displayStartIndex = (spending.length > 9) ? spending.length - 9 : 0;
       isLoading = false;
     });
+  }
+
+  void _updateDisplayWindow() {
+    if (monthlySpending.length <= 9) {
+      displayStartIndex = 0;
+      return;
+    }
+
+    if (selectedMonthIndex < displayStartIndex) {
+      displayStartIndex = selectedMonthIndex;
+    } else if (selectedMonthIndex >= displayStartIndex + 9) {
+      displayStartIndex = selectedMonthIndex - 8;
+    }
   }
 
   @override
@@ -120,7 +135,10 @@ class _SpendingScreenState extends State<SpendingScreen> {
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       onPressed: selectedMonthIndex > 0
-                          ? () => setState(() => selectedMonthIndex--)
+                          ? () => setState(() {
+                                selectedMonthIndex--;
+                                _updateDisplayWindow();
+                              })
                           : null,
                     ),
                     IconButton(
@@ -129,7 +147,10 @@ class _SpendingScreenState extends State<SpendingScreen> {
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       onPressed: selectedMonthIndex < monthlySpending.length - 1
-                          ? () => setState(() => selectedMonthIndex++)
+                          ? () => setState(() {
+                                selectedMonthIndex++;
+                                _updateDisplayWindow();
+                              })
                           : null,
                     ),
                   ],
@@ -215,13 +236,15 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                     sideTitles: SideTitles(
                                       showTitles: true,
                                       getTitlesWidget: (value, meta) {
-                                        if (value.toInt() >=
+                                        final actualIndex =
+                                            value.toInt() + displayStartIndex;
+                                        if (actualIndex >=
                                             monthlySpending.length) {
                                           return const SizedBox.shrink();
                                         }
                                         return Text(
                                           DateFormat('MMM').format(
-                                              monthlySpending[value.toInt()]
+                                              monthlySpending[actualIndex]
                                                   .date),
                                           style: const TextStyle(
                                             fontSize: 10,
@@ -249,11 +272,15 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                 barGroups: monthlySpending
                                     .asMap()
                                     .entries
+                                    .where((entry) =>
+                                        entry.key >= displayStartIndex &&
+                                        entry.key < displayStartIndex + 9 &&
+                                        entry.key < monthlySpending.length)
                                     .map((entry) {
                                   final double width = 8;
                                   final double gap = 4;
                                   return BarChartGroupData(
-                                    x: entry.key,
+                                    x: entry.key - displayStartIndex,
                                     groupVertically: false,
                                     barRods: [
                                       BarChartRodData(
