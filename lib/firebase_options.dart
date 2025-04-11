@@ -65,10 +65,12 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyAN21HLuyTbioRl-LVwiBPnIgkPLgW9DQI',
-    appId: '1:946317225084:ios:4520e75d710f2bc8532df9',
+    appId: '1:946317225084:ios:16e009db05c4bb13532df9',
     messagingSenderId: '946317225084',
     projectId: 'finsight-a5027',
     storageBucket: 'finsight-a5027.firebasestorage.app',
+    iosClientId: '946317225084-t8flbvdpepob3sc998vtg8dg3ehab8io.apps.googleusercontent.com',
     iosBundleId: 'com.finsight.finsight',
   );
+
 }

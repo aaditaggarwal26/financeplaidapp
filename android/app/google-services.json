@@ -12,7 +12,12 @@
           "package_name": "com.finsight.finsight"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "946317225084-4smm8jrgqg1ul6gv0b8f6ea0lam8b2h4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDSZDGnASb2dk2M4ELcK4oYkBIb6N_gmGo"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "946317225084-4smm8jrgqg1ul6gv0b8f6ea0lam8b2h4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "946317225084-ipcm9do2gp747d17h04g2vdlbtfccr77.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.fblaCodingProgrammingApp"
+              }
+            }
+          ]
         }
       }
     }
