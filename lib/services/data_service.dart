@@ -24,6 +24,7 @@ class DataService {
 
   Future<void> _initializeLocalFile() async {
     final file = await _localFile;
+    print('Initializing local file at: ${file.path}');
     final exists = await file.exists();
 
     if (!exists) {
@@ -111,7 +112,6 @@ class DataService {
           }
         }
       }
-
       return transactions;
     } catch (e) {
       print('Error loading transactions: $e');

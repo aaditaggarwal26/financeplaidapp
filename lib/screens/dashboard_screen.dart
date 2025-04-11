@@ -121,7 +121,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  isSpending ? '\$4,345.67' : '739',
+                  isSpending ? '\$4,336.97' : '745',
                   style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,

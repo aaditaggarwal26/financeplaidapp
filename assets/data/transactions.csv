@@ -4,9 +4,9 @@ Date,Description,Category,Amount,Account,Transaction_Type
 2024-10-02,TARGET,Shopping,89.23,Credit Card,Debit
 2024-10-02,SHELL OIL #5678,Transportation,45.67,Credit Card,Debit
 2024-10-03,SUBWAY,Dining_Out,12.34,Credit Card,Debit
-2024-10-03,APARTMENT RENT,Rent,1500.00,Checking,Debit
+2024-10-03,APARTMENT RENT,Rent,1500.0,Checking,Debit
 2024-10-04,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
-2024-10-05,TRADER JOES #234,Groceries,78.90,Credit Card,Debit
+2024-10-05,TRADER JOES #234,Groceries,78.9,Credit Card,Debit
 2024-10-06,AMC THEATERS,Entertainment,34.56,Credit Card,Debit
 2024-10-07,COMCAST,Utilities,89.23,Checking,Debit
 2024-10-08,CVS PHARMACY,Healthcare,45.67,Credit Card,Debit
@@ -21,50 +21,229 @@ Date,Description,Category,Amount,Account,Transaction_Type
 2024-10-17,SPOTIFY,Entertainment,9.99,Credit Card,Debit
 2024-10-18,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
 2024-10-19,PETCO,Shopping,56.78,Credit Card,Debit
-2024-10-20,CHEVRON,Transportation,48.90,Credit Card,Debit
+2024-10-20,CHEVRON,Transportation,48.9,Credit Card,Debit
 2024-10-21,GRUBHUB,Dining_Out,45.67,Credit Card,Debit
-2024-10-22,DOCTOR VISIT COPAY,Healthcare,35.00,Credit Card,Debit
+2024-10-22,DOCTOR VISIT COPAY,Healthcare,35.0,Credit Card,Debit
 2024-10-23,COSTCO GAS,Transportation,65.78,Credit Card,Debit
 2024-10-24,COSTCO WHSE,Groceries,234.56,Credit Card,Debit
-2024-10-25,GYM MEMBERSHIP,Entertainment,45.00,Checking,Debit
-2024-10-26,ROSS,Shopping,78.90,Credit Card,Debit
+2024-10-25,GYM MEMBERSHIP,Entertainment,45.0,Checking,Debit
+2024-10-26,ROSS,Shopping,78.9,Credit Card,Debit
 2024-10-27,OLIVE GARDEN,Dining_Out,67.89,Credit Card,Debit
 2024-10-28,ELECTRIC BILL,Utilities,76.11,Checking,Debit
-2024-10-05,BEST BUY,Shopping,399.99,Credit Card,Debit,secondary
-2024-10-08,DELTA AIRLINES,Travel,567.89,Credit Card,Debit,secondary
-2024-10-12,AMAZON PRIME,Shopping,234.56,Credit Card,Debit,secondary
-2024-10-15,MARRIOTT HOTELS,Travel,789.23,Credit Card,Debit,secondary
-2024-10-20,APPLE STORE,Shopping,1299.99,Credit Card,Debit,secondary
-2024-08-01,WALMART GROCERY #4523,Groceries,118.45,Checking,Debit
-2024-08-01,NETFLIX,Entertainment,15.99,Credit Card,Debit
-2024-08-02,TARGET,Shopping,92.45,Credit Card,Debit
-2024-08-03,APARTMENT RENT,Rent,1500.00,Checking,Debit
-2024-08-04,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
-2024-08-05,SHELL OIL #5678,Transportation,48.90,Credit Card,Debit
-2024-08-06,TRADER JOES #234,Groceries,82.34,Credit Card,Debit
-2024-08-07,COMCAST,Utilities,89.23,Checking,Debit
-2024-08-18,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
-2024-08-20,COSTCO WHSE,Groceries,245.67,Credit Card,Debit
-2024-08-25,GYM MEMBERSHIP,Entertainment,45.00,Checking,Debit
-2024-09-01,WALMART GROCERY #4523,Groceries,125.67,Checking,Debit
-2024-09-01,NETFLIX,Entertainment,15.99,Credit Card,Debit
-2024-09-02,TARGET,Shopping,87.65,Credit Card,Debit
-2024-09-03,APARTMENT RENT,Rent,1500.00,Checking,Debit
-2024-09-04,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
-2024-09-05,CHEVRON,Transportation,52.34,Credit Card,Debit
-2024-09-06,WHOLEFDS MKT,Groceries,156.78,Credit Card,Debit
-2024-09-07,MOBILE PHONE BILL,Utilities,100.89,Checking,Debit
-2024-09-18,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
-2024-09-20,COSTCO WHSE,Groceries,267.89,Credit Card,Debit
-2024-09-25,GYM MEMBERSHIP,Entertainment,45.00,Checking,Debit
-2024-11-01,WALMART GROCERY #4523,Groceries,127.89,Checking,Debit
-2024-11-01,NETFLIX,Entertainment,15.99,Credit Card,Debit
-2024-11-02,TARGET,Shopping,95.67,Credit Card,Debit
-2024-11-03,APARTMENT RENT,Rent,1500.00,Checking,Debit
-2024-11-04,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
-2024-11-05,SHELL OIL #5678,Transportation,49.23,Credit Card,Debit
-2024-11-06,TRADER JOES #234,Groceries,85.67,Credit Card,Debit
-2024-11-07,COMCAST,Utilities,89.23,Checking,Debit
-2024-11-18,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
-2024-11-20,COSTCO WHSE,Groceries,256.78,Credit Card,Debit
-2024-11-25,GYM MEMBERSHIP,Entertainment,45.00,Checking,Debit
+2024-10-05,BEST BUY,Shopping,399.99,Credit Card,Debit
+2024-10-08,DELTA AIRLINES,Travel,567.89,Credit Card,Debit
+2024-10-12,AMAZON PRIME,Shopping,234.56,Credit Card,Debit
+2024-10-15,MARRIOTT HOTELS,Travel,789.23,Credit Card,Debit
+2024-10-20,APPLE STORE,Shopping,1299.99,Credit Card,Debit
+2024-11-27,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2024-11-03,COMCAST,Utilities,97.54,Credit Card,Debit
+2024-11-26,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2024-11-16,CHIPOTLE,Dining_Out,9.15,Checking,Debit
+2024-11-10,CVS PHARMACY,Healthcare,51.16,Checking,Debit
+2024-11-22,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2024-11-01,MOBILE PHONE BILL,Utilities,97.78,Credit Card,Debit
+2024-11-18,AUTO INSURANCE,Insurance,234.56,Checking,Debit
+2024-11-22,CVS PHARMACY,Healthcare,59.06,Checking,Debit
+2024-11-04,COSTCO WHSE,Groceries,213.7,Credit Card,Debit
+2024-11-22,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2024-11-02,GRUBHUB,Dining_Out,32.62,Credit Card,Debit
+2024-11-16,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2024-11-15,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2024-11-15,MARRIOTT HOTELS,Travel,487.04,Checking,Debit
+2024-11-27,DELTA AIRLINES,Travel,597.27,Credit Card,Debit
+2024-11-14,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-11-01,CHIPOTLE,Dining_Out,24.57,Credit Card,Debit
+2024-11-23,MARRIOTT HOTELS,Travel,377.11,Credit Card,Debit
+2024-11-04,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2024-11-27,CHIPOTLE,Dining_Out,24.61,Checking,Debit
+2024-11-13,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2024-11-21,DELTA AIRLINES,Travel,695.77,Checking,Debit
+2024-11-03,COMCAST,Utilities,80.77,Credit Card,Debit
+2024-11-03,GRUBHUB,Dining_Out,15.41,Credit Card,Debit
+2024-11-10,OLIVE GARDEN,Dining_Out,20.42,Credit Card,Debit
+2024-11-03,COSTCO GAS,Transportation,61.54,Credit Card,Debit
+2024-11-19,TRADER JOES,Groceries,93.12,Checking,Debit
+2024-11-18,TRADER JOES,Groceries,138.53,Checking,Debit
+2024-11-25,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-11-13,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2024-11-24,UBER,Transportation,53.96,Credit Card,Debit
+2024-11-02,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-11-05,DELTA AIRLINES,Travel,415.76,Credit Card,Debit
+2024-11-15,UBER,Transportation,51.58,Credit Card,Debit
+2024-11-12,AUTO INSURANCE,Insurance,234.56,Checking,Debit
+2024-11-19,ELECTRIC BILL,Utilities,94.56,Credit Card,Debit
+2024-11-13,TARGET,Shopping,85.3,Credit Card,Debit
+2024-11-03,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2024-11-26,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2024-12-01,GRUBHUB,Dining_Out,13.88,Credit Card,Debit
+2024-12-25,CHEVRON,Transportation,46.88,Checking,Debit
+2024-12-11,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2024-12-21,GYM MEMBERSHIP,Entertainment,35.33,Credit Card,Debit
+2024-12-27,WHOLEFDS MKT,Groceries,200.88,Checking,Debit
+2024-12-25,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2024-12-02,TRADER JOES,Groceries,166.43,Checking,Debit
+2024-12-25,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2024-12-17,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2024-12-23,COSTCO GAS,Transportation,33.25,Checking,Debit
+2024-12-13,ELECTRIC BILL,Utilities,87.5,Credit Card,Debit
+2024-12-25,AUTO INSURANCE,Insurance,234.56,Checking,Debit
+2024-12-10,CVS PHARMACY,Healthcare,68.61,Credit Card,Debit
+2024-12-11,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2024-12-11,ELECTRIC BILL,Utilities,95.8,Credit Card,Debit
+2024-12-05,AUTO INSURANCE,Insurance,234.56,Checking,Debit
+2024-12-25,WALMART GROCERY #4523,Groceries,101.87,Credit Card,Debit
+2024-12-11,MARRIOTT HOTELS,Travel,604.5,Credit Card,Debit
+2024-12-14,ELECTRIC BILL,Utilities,92.36,Credit Card,Debit
+2024-12-11,CHIPOTLE,Dining_Out,39.62,Credit Card,Debit
+2024-12-27,WALMART GROCERY #4523,Groceries,156.73,Checking,Debit
+2024-12-20,COMCAST,Utilities,101.85,Credit Card,Debit
+2024-12-20,DOCTOR VISIT COPAY,Healthcare,56.08,Checking,Debit
+2024-12-26,DELTA AIRLINES,Travel,358.34,Checking,Debit
+2024-12-24,DOCTOR VISIT COPAY,Healthcare,76.32,Credit Card,Debit
+2024-12-19,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2024-12-22,DELTA AIRLINES,Travel,595.95,Credit Card,Debit
+2024-12-26,SPOTIFY,Entertainment,28.14,Credit Card,Debit
+2024-12-14,SHELL OIL #5678,Transportation,50.79,Credit Card,Debit
+2024-12-07,MARRIOTT HOTELS,Travel,536.37,Credit Card,Debit
+2024-12-11,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2024-12-01,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2024-12-15,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2024-12-03,MARRIOTT HOTELS,Travel,390.3,Credit Card,Debit
+2024-12-08,TRADER JOES,Groceries,174.24,Credit Card,Debit
+2025-01-03,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2025-01-19,SUBWAY,Dining_Out,9.13,Checking,Debit
+2025-01-05,COSTCO GAS,Transportation,55.55,Credit Card,Debit
+2025-01-20,WALMART GROCERY #4523,Groceries,239.3,Credit Card,Debit
+2025-01-16,COMCAST,Utilities,80.02,Checking,Debit
+2025-01-08,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-01-17,AMAZON.COM,Shopping,165.19,Checking,Debit
+2025-01-11,WHOLEFDS MKT,Groceries,238.57,Credit Card,Debit
+2025-01-21,MARRIOTT HOTELS,Travel,603.09,Checking,Debit
+2025-01-14,AMAZON.COM,Shopping,71.93,Checking,Debit
+2025-01-11,WALMART GROCERY #4523,Groceries,225.18,Checking,Debit
+2025-01-02,WHOLEFDS MKT,Groceries,199.13,Checking,Debit
+2025-01-22,AMAZON.COM,Shopping,69.55,Credit Card,Debit
+2025-01-17,AMAZON.COM,Shopping,171.08,Credit Card,Debit
+2025-01-15,APPLE STORE,Shopping,171.12,Credit Card,Debit
+2025-01-21,MOBILE PHONE BILL,Utilities,105.63,Checking,Debit
+2025-01-06,GYM MEMBERSHIP,Entertainment,30.94,Checking,Debit
+2025-01-08,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2025-01-19,TARGET,Shopping,96.65,Checking,Debit
+2025-01-10,OLIVE GARDEN,Dining_Out,20.04,Credit Card,Debit
+2025-01-18,DELTA AIRLINES,Travel,336.27,Credit Card,Debit
+2025-01-25,DOCTOR VISIT COPAY,Healthcare,49.95,Checking,Debit
+2025-01-23,AMAZON.COM,Shopping,146.58,Checking,Debit
+2025-01-21,DOCTOR VISIT COPAY,Healthcare,59.97,Credit Card,Debit
+2025-01-26,MARRIOTT HOTELS,Travel,456.19,Credit Card,Debit
+2025-01-06,GYM MEMBERSHIP,Entertainment,29.04,Credit Card,Debit
+2025-01-07,APPLE STORE,Shopping,183.52,Credit Card,Debit
+2025-01-01,GRUBHUB,Dining_Out,16.65,Credit Card,Debit
+2025-01-25,DOCTOR VISIT COPAY,Healthcare,35.31,Credit Card,Debit
+2025-01-04,CVS PHARMACY,Healthcare,61.97,Credit Card,Debit
+2025-01-10,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2025-01-25,CHEVRON,Transportation,28.99,Credit Card,Debit
+2025-02-26,DOCTOR VISIT COPAY,Healthcare,39.81,Checking,Debit
+2025-02-22,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-02-05,MOBILE PHONE BILL,Utilities,93.44,Credit Card,Debit
+2025-02-10,BEST BUY,Shopping,54.81,Credit Card,Debit
+2025-02-18,AMAZON.COM,Shopping,88.85,Credit Card,Debit
+2025-02-11,DOCTOR VISIT COPAY,Healthcare,43.56,Credit Card,Debit
+2025-02-18,SUBWAY,Dining_Out,12.89,Checking,Debit
+2025-02-11,DOCTOR VISIT COPAY,Healthcare,50.07,Credit Card,Debit
+2025-02-22,MARRIOTT HOTELS,Travel,595.33,Credit Card,Debit
+2025-02-21,AUTO INSURANCE,Insurance,234.56,Checking,Debit
+2025-02-23,GRUBHUB,Dining_Out,15.46,Checking,Debit
+2025-02-18,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2025-02-24,MARRIOTT HOTELS,Travel,341.96,Credit Card,Debit
+2025-02-07,COSTCO GAS,Transportation,32.31,Credit Card,Debit
+2025-02-24,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2025-02-07,ELECTRIC BILL,Utilities,85.18,Credit Card,Debit
+2025-02-18,WALMART GROCERY #4523,Groceries,123.4,Credit Card,Debit
+2025-02-11,DOCTOR VISIT COPAY,Healthcare,81.94,Credit Card,Debit
+2025-02-11,WHOLEFDS MKT,Groceries,231.88,Credit Card,Debit
+2025-02-17,APPLE STORE,Shopping,127.95,Credit Card,Debit
+2025-02-09,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2025-02-13,ELECTRIC BILL,Utilities,86.15,Credit Card,Debit
+2025-02-02,NETFLIX,Entertainment,36.84,Checking,Debit
+2025-02-26,ELECTRIC BILL,Utilities,101.64,Credit Card,Debit
+2025-02-16,COSTCO GAS,Transportation,51.79,Credit Card,Debit
+2025-02-07,SHELL OIL #5678,Transportation,46.13,Credit Card,Debit
+2025-02-23,BEST BUY,Shopping,91.49,Credit Card,Debit
+2025-02-02,GYM MEMBERSHIP,Entertainment,26.29,Credit Card,Debit
+2025-02-20,SUBWAY,Dining_Out,30.02,Credit Card,Debit
+2025-02-09,MOBILE PHONE BILL,Utilities,107.04,Checking,Debit
+2025-02-23,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-02-15,DELTA AIRLINES,Travel,553.7,Credit Card,Debit
+2025-02-21,SHELL OIL #5678,Transportation,64.79,Checking,Debit
+2025-02-14,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2025-02-04,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-03-17,TRADER JOES,Groceries,83.51,Checking,Debit
+2025-03-17,SPOTIFY,Entertainment,20.63,Credit Card,Debit
+2025-03-18,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-03-19,CHEVRON,Transportation,30.21,Checking,Debit
+2025-03-12,MOBILE PHONE BILL,Utilities,89.31,Credit Card,Debit
+2025-03-17,MARRIOTT HOTELS,Travel,616.31,Checking,Debit
+2025-03-02,DELTA AIRLINES,Travel,662.6,Credit Card,Debit
+2025-03-05,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2025-03-18,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2025-03-26,AMC THEATERS,Entertainment,26.68,Credit Card,Debit
+2025-03-17,MARRIOTT HOTELS,Travel,762.82,Checking,Debit
+2025-03-13,TARGET,Shopping,175.55,Credit Card,Debit
+2025-03-25,APPLE STORE,Shopping,97.79,Checking,Debit
+2025-03-23,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-03-09,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-03-22,CVS PHARMACY,Healthcare,76.48,Credit Card,Debit
+2025-03-14,DOCTOR VISIT COPAY,Healthcare,84.36,Credit Card,Debit
+2025-03-01,WALMART GROCERY #4523,Groceries,180.67,Checking,Debit
+2025-03-27,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-03-16,UBER,Transportation,57.42,Checking,Debit
+2025-03-28,TRADER JOES,Groceries,179.39,Checking,Debit
+2025-03-25,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2025-03-16,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2025-03-05,ELECTRIC BILL,Utilities,101.19,Credit Card,Debit
+2025-03-27,SUBWAY,Dining_Out,24.51,Credit Card,Debit
+2025-03-18,MARRIOTT HOTELS,Travel,317.55,Checking,Debit
+2025-03-15,OLIVE GARDEN,Dining_Out,10.26,Credit Card,Debit
+2025-03-18,SUBWAY,Dining_Out,17.76,Credit Card,Debit
+2025-03-22,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2025-03-13,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2025-03-22,CVS PHARMACY,Healthcare,34.55,Credit Card,Debit
+2025-03-11,CVS PHARMACY,Healthcare,34.41,Checking,Debit
+2025-03-22,CVS PHARMACY,Healthcare,72.53,Credit Card,Debit
+2025-03-12,COSTCO GAS,Transportation,47.25,Credit Card,Debit
+2025-03-22,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2025-03-12,COSTCO WHSE,Groceries,136.14,Checking,Debit
+2025-03-09,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-03-25,GYM MEMBERSHIP,Entertainment,22.75,Credit Card,Debit
+2025-03-04,APPLE STORE,Shopping,158.12,Credit Card,Debit
+2025-03-08,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-04-04,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2025-04-25,WALMART GROCERY #4523,Groceries,148.65,Checking,Debit
+2025-04-26,GYM MEMBERSHIP,Entertainment,32.15,Credit Card,Debit
+2025-04-05,CHEVRON,Transportation,45.27,Credit Card,Debit
+2025-04-23,APPLE STORE,Shopping,89.41,Credit Card,Debit
+2025-04-03,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-04-04,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2025-04-04,APARTMENT RENT,Rent,1500.0,Checking,Debit
+2025-04-13,AMC THEATERS,Entertainment,33.0,Credit Card,Debit
+2025-04-27,PAYCHECK - ABC COMPANY,Income,2767.28,Credit Card,Credit
+2025-04-17,SUBWAY,Dining_Out,26.45,Checking,Debit
+2025-04-09,AUTO INSURANCE,Insurance,234.56,Checking,Debit
+2025-04-14,SHELL OIL #5678,Transportation,44.86,Checking,Debit
+2025-04-24,CVS PHARMACY,Healthcare,68.17,Credit Card,Debit
+2025-04-11,GYM MEMBERSHIP,Entertainment,42.03,Checking,Debit
+2025-04-10,COSTCO GAS,Transportation,55.84,Checking,Debit
+2025-04-10,CHIPOTLE,Dining_Out,32.51,Credit Card,Debit
+2025-04-19,AUTO INSURANCE,Insurance,234.56,Checking,Debit
+2025-04-10,OLIVE GARDEN,Dining_Out,20.38,Checking,Debit
+2025-04-08,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2025-04-03,CVS PHARMACY,Healthcare,56.55,Credit Card,Debit
+2025-04-17,UBER,Transportation,31.96,Credit Card,Debit
+2025-04-13,MARRIOTT HOTELS,Travel,678.18,Checking,Debit
+2025-04-23,ELECTRIC BILL,Utilities,81.74,Credit Card,Debit
+2025-04-17,AUTO INSURANCE,Insurance,234.56,Credit Card,Debit
+2025-04-01,COSTCO WHSE,Groceries,88.04,Credit Card,Debit
+2025-04-02,MOBILE PHONE BILL,Utilities,98.49,Checking,Debit
+2025-04-01,PAYCHECK - ABC COMPANY,Income,2767.28,Checking,Credit
+2025-04-09,TARGET,Shopping,140.03,Credit Card,Debit
+2025-04-02,MOBILE PHONE BILL,Utilities,106.23,Credit Card,Debit
