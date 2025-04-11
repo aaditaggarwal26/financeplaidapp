@@ -1,5 +1,6 @@
 import 'package:finsight/exports/spending_export.dart';
 import 'package:finsight/models/monthly_spending.dart';
+import 'package:finsight/screens/sankey_graph.dart';
 import 'package:finsight/services/data_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -23,6 +24,16 @@ class _SpendingScreenState extends State<SpendingScreen> {
   void initState() {
     super.initState();
     loadData();
+  }
+
+  void _showSankeyDiagram() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => SankeyDiagramScreen(
+          monthlySpending: monthlySpending[selectedMonthIndex],
+        ),
+      ),
+    );
   }
 
   Future<void> loadData() async {
@@ -79,29 +90,40 @@ class _SpendingScreenState extends State<SpendingScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.download, color: Colors.white),
-                    onPressed: () async {
-                      try {
-                        await SpendingReportGenerator.generateReport(
-                            monthlySpending, context);
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.waterfall_chart,
+                            color: Colors.white),
+                        tooltip: 'Money Flow',
+                        onPressed: () => _showSankeyDiagram(),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.download, color: Colors.white),
+                        onPressed: () async {
+                          try {
+                            await SpendingReportGenerator.generateReport(
+                                monthlySpending, context);
 
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Report generated successfully')),
-                          );
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text(
-                                    'Error generating report: ${e.toString()}')),
-                          );
-                        }
-                      }
-                    },
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content:
+                                        Text('Report generated successfully')),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text(
+                                        'Error generating report: ${e.toString()}')),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
