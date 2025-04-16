@@ -4,6 +4,7 @@ import 'package:finsight/screens/transitions_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:finsight/screens/dashboard_screen.dart';
 import 'package:finsight/screens/ai_chat_screen.dart';
+import 'package:finsight/screens/forum_screen.dart';
 
 class Tabs extends StatefulWidget {
   const Tabs({super.key});
@@ -19,6 +20,7 @@ class _TabsState extends State<Tabs> {
     const DashboardScreen(),
     const SpendingScreen(),
     const TransactionScreen(),
+    const CommunityForumScreen(),
     SettingsScreen(),
   ];
 
@@ -60,6 +62,10 @@ class _TabsState extends State<Tabs> {
           BottomNavigationBarItem(
             icon: Icon(Icons.search),
             label: 'Transactions',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.forum_outlined),
+            label: 'Forum',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
