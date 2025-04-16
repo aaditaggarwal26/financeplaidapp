@@ -4,10 +4,15 @@ import 'package:finsight/screens/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-class SettingsScreen extends StatelessWidget {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
 
-  SettingsScreen({super.key});
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<void> _signOut(BuildContext context) async {
     try {
@@ -22,6 +27,43 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  void _editNameDialog(BuildContext context) {
+    final user = _auth.currentUser;
+    final TextEditingController _nameController =
+        TextEditingController(text: user?.displayName ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Update Name'),
+          content: TextField(
+            controller: _nameController,
+            decoration: InputDecoration(hintText: 'Enter your name'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final newName = _nameController.text.trim();
+                if (newName.isNotEmpty) {
+                  await user?.updateDisplayName(newName);
+                  await user?.reload();
+                  setState(() {});
+                  Navigator.pop(context);
+                }
+              },
+              child: Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = _auth.currentUser;
@@ -31,7 +73,6 @@ class SettingsScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
@@ -47,8 +88,6 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
-            
-            // User profile card
             if (user != null) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -97,56 +136,39 @@ class SettingsScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Your Account',
+                                'Hi ${user.displayName ?? 'User'}',
                                 style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF2B3A55).withOpacity(0.7),
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF2B3A55),
                                 ),
                               ),
                               SizedBox(height: 4),
                               Text(
                                 user.email ?? 'No email',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF2B3A55),
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFF2B3A55).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  'Personal Account',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF2B3A55),
-                                  ),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF2B3A55).withOpacity(0.7),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        Container(
-                          height: 40,
-                          width: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.2),
-                          ),
-                          child: Center(
-                            child: Icon(
-                              Icons.edit,
-                              color: Color(0xFF2B3A55),
-                              size: 20,
+                        GestureDetector(
+                          onTap: () => _editNameDialog(context),
+                          child: Container(
+                            height: 40,
+                            width: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withOpacity(0.2),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.edit,
+                                color: Color(0xFF2B3A55),
+                                size: 20,
+                              ),
                             ),
                           ),
                         ),
@@ -156,8 +178,6 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ],
-            
-            // Main content
             Expanded(
               child: Container(
                 margin: const EdgeInsets.only(top: 24),
