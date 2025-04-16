@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -11,6 +10,9 @@ import 'package:finsight/models/transaction.dart';
 import 'package:finsight/services/data_service.dart';
 import 'package:finsight/services/plaid_service.dart';
 import 'package:plaid_flutter/plaid_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:finsight/screens/spending_screen.dart'; // Added import for SpendingScreen navigation
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -38,7 +40,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     'Investments': false,
   };
 
-  // Financial wellness score data
   final double _financialWellnessScore = 78;
   final List<WellnessMetric> _wellnessMetrics = [
     WellnessMetric(
@@ -63,8 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     ),
   ];
 
-  // Budget summary data
-  final List<BudgetCategory> _budgetCategories = [
+  List<BudgetCategory> _budgetCategories = [
     BudgetCategory(
       name: 'Housing',
       spent: 1500,
@@ -97,39 +97,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     ),
   ];
 
-  // Cash flow data
   final Map<String, double> _monthlyCashFlow = {
     'Income': 5800,
     'Expenses': 4200,
     'Savings': 1600,
   };
 
-  // Insights and recommendations
-  final List<FinancialInsight> _insights = [
-    FinancialInsight(
-      title: 'You\'re spending too much on dining out',
-      description: 'Try reducing your restaurant visits by 20% to save an additional \$150 monthly.',
-      action: 'View Details',
-      actionColor: Colors.amber,
-      icon: Icons.restaurant,
-    ),
-    FinancialInsight(
-      title: 'Your emergency fund is below target',
-      description: 'You currently have 2 months of expenses saved. Aim for 3-6 months.',
-      action: 'Build Emergency Fund',
-      actionColor: Colors.red,
-      icon: Icons.warning_amber,
-    ),
-    FinancialInsight(
-      title: 'Great job saving this month!',
-      description: 'You saved 15% more this month than your average.',
-      action: 'View Savings',
-      actionColor: Colors.green,
-      icon: Icons.savings,
-    ),
-  ];
-
-  // Spending trend data
   final List<SpendingTrend> _spendingTrends = [
     SpendingTrend(
       category: 'Groceries',
@@ -157,7 +130,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     ),
   ];
 
-  // Mock credit score history data
   final List<CreditScoreData> _creditScoreHistory = [
     CreditScoreData(DateTime(2023, 10), 723),
     CreditScoreData(DateTime(2023, 11), 728),
@@ -167,6 +139,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     CreditScoreData(DateTime(2024, 3), 741),
     CreditScoreData(DateTime(2024, 4), 745),
   ];
+
+  final TextEditingController _categoryNameController = TextEditingController();
+  final TextEditingController _budgetAmountController = TextEditingController();
 
   @override
   bool get wantKeepAlive => true;
@@ -213,6 +188,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void dispose() {
     _pageController.dispose();
+    _categoryNameController.dispose();
+    _budgetAmountController.dispose();
     super.dispose();
   }
 
@@ -356,12 +333,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                 _buildQuickActionButton(
                   icon: Icons.add_circle_outline,
                   label: 'Add Money',
-                  onTap: () {},
+                  onTap: _showAddMoneyDialog,
                 ),
                 _buildQuickActionButton(
                   icon: Icons.money,
                   label: 'Send Money',
-                  onTap: () {},
+                  onTap: _showSendMoneyDialog,
                 ),
                 _buildQuickActionButton(
                   icon: Icons.account_balance_wallet_outlined,
@@ -371,7 +348,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 _buildQuickActionButton(
                   icon: Icons.analytics_outlined,
                   label: 'Analytics',
-                  onTap: () {},
+                  onTap: () => Navigator.pushNamed(context, '/analytics'),
                 ),
               ],
             ),
@@ -409,6 +386,61 @@ class _DashboardScreenState extends State<DashboardScreen>
               color: Colors.white.withOpacity(0.9),
               fontSize: 12,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddMoneyDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Money'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(labelText: 'Amount'),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSendMoneyDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Send Money'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(labelText: 'Recipient'),
+            ),
+            TextField(
+              decoration: const InputDecoration(labelText: 'Amount'),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('Send'),
           ),
         ],
       ),
@@ -689,7 +721,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             Center(
               child: TextButton.icon(
-                onPressed: () {},
+                onPressed: _addBudgetCategory,
                 icon: const Icon(
                   Icons.add_circle_outline,
                   size: 18,
@@ -706,6 +738,51 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _addBudgetCategory() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Budget Category'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _categoryNameController,
+              decoration: const InputDecoration(labelText: 'Category Name'),
+            ),
+            TextField(
+              controller: _budgetAmountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Budget Amount'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              final name = _categoryNameController.text;
+              final amount = double.tryParse(_budgetAmountController.text) ?? 0;
+              if (name.isNotEmpty && amount > 0) {
+                setState(() {
+                  _budgetCategories.add(BudgetCategory(
+                    name: name,
+                    spent: 0,
+                    budget: amount,
+                    color: Colors.primaries[_budgetCategories.length % Colors.primaries.length],
+                  ));
+                });
+                _categoryNameController.clear();
+                _budgetAmountController.clear();
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
       ),
     );
   }
@@ -737,72 +814,141 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ),
             const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: SizedBox(
-                    height: 180,
-                    child: PieChart(
-                      PieChartData(
-                        sections: [
-                          PieChartSectionData(
-                            value: expensesPercentage,
-                            title: '${expensesPercentage.toStringAsFixed(0)}%',
-                            color: Colors.red.shade400,
-                            radius: 70,
-                            titleStyle: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          PieChartSectionData(
-                            value: savingsPercentage,
-                            title: '${savingsPercentage.toStringAsFixed(0)}%',
-                            color: Colors.green.shade400,
-                            radius: 70,
-                            titleStyle: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                        centerSpaceRadius: 40,
-                        sectionsSpace: 2,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth > 400) {
+                  return Row(
                     children: [
-                      _buildCashFlowLegendItem(
-                        label: 'Income',
-                        amount: total,
-                        color: const Color(0xFF2B3A55),
+                      Expanded(
+                        flex: 3,
+                        child: SizedBox(
+                          height: 180,
+                          child: PieChart(
+                            PieChartData(
+                              sections: [
+                                PieChartSectionData(
+                                  value: expensesPercentage,
+                                  title: '${expensesPercentage.toStringAsFixed(0)}%',
+                                  color: Colors.red.shade400,
+                                  radius: 70,
+                                  titleStyle: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                PieChartSectionData(
+                                  value: savingsPercentage,
+                                  title: '${savingsPercentage.toStringAsFixed(0)}%',
+                                  color: Colors.green.shade400,
+                                  radius: 70,
+                                  titleStyle: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                              centerSpaceRadius: 40,
+                              sectionsSpace: 2,
+                            ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      _buildCashFlowLegendItem(
-                        label: 'Expenses',
-                        amount: expenses,
-                        color: Colors.red.shade400,
-                        percentage: expensesPercentage,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildCashFlowLegendItem(
-                        label: 'Savings',
-                        amount: savings,
-                        color: Colors.green.shade400,
-                        percentage: savingsPercentage,
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildCashFlowLegendItem(
+                              label: 'Income',
+                              amount: total,
+                              color: const Color(0xFF2B3A55),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildCashFlowLegendItem(
+                              label: 'Expenses',
+                              amount: expenses,
+                              color: Colors.red.shade400,
+                              percentage: expensesPercentage,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildCashFlowLegendItem(
+                              label: 'Savings',
+                              amount: savings,
+                              color: Colors.green.shade400,
+                              percentage: savingsPercentage,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
-                  ),
-                ),
-              ],
+                  );
+                } else {
+                  return Column(
+                    children: [
+                      SizedBox(
+                        height: 180,
+                        child: PieChart(
+                          PieChartData(
+                            sections: [
+                              PieChartSectionData(
+                                value: expensesPercentage,
+                                title: '${expensesPercentage.toStringAsFixed(0)}%',
+                                color: Colors.red.shade400,
+                                radius: 70,
+                                titleStyle: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              PieChartSectionData(
+                                value: savingsPercentage,
+                                title: '${savingsPercentage.toStringAsFixed(0)}%',
+                                color: Colors.green.shade400,
+                                radius: 70,
+                                titleStyle: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                            centerSpaceRadius: 40,
+                            sectionsSpace: 2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildCashFlowLegendItem(
+                            label: 'Income',
+                            amount: total,
+                            color: const Color(0xFF2B3A55),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildCashFlowLegendItem(
+                            label: 'Expenses',
+                            amount: expenses,
+                            color: Colors.red.shade400,
+                            percentage: expensesPercentage,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildCashFlowLegendItem(
+                            label: 'Savings',
+                            amount: savings,
+                            color: Colors.green.shade400,
+                            percentage: savingsPercentage,
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+              },
             ),
             const SizedBox(height: 16),
             Container(
@@ -895,110 +1041,131 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildInsights() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
+    return FutureBuilder<List<FinancialInsight>>(
+      future: _fetchAIInsights(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return const Center(child: Text('Error loading insights'));
+        }
+        final insights = snapshot.data ?? [];
+        return Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.lightbulb_outline,
-                  color: Color(0xFFE5BA73),
-                  size: 22,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'Smart Insights',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2B3A55),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ListView.builder(
-              physics: const NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              itemCount: _insights.length,
-              itemBuilder: (context, index) {
-                final insight = _insights[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: insight.actionColor.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: insight.actionColor.withOpacity(0.2),
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.lightbulb_outline,
+                      color: Color(0xFFE5BA73),
+                      size: 22,
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                    SizedBox(width: 8),
+                    Text(
+                      'Smart Insights',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2B3A55),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8), // Reduced spacing between header and list
+                ListView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  itemCount: insights.length,
+                  itemBuilder: (context, index) {
+                    final insight = insights[index];
+                    final isLast = index == insights.length - 1;
+                    return Container(
+                      margin: EdgeInsets.only(bottom: isLast ? 0 : 12), // No bottom margin for last item
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: insight.actionColor.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: insight.actionColor.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            insight.icon,
-                            color: insight.actionColor,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              insight.title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
+                          Row(
+                            children: [
+                              Icon(
+                                insight.icon,
+                                color: insight.actionColor,
+                                size: 20,
                               ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  insight.title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            insight.description,
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 14,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        insight.description,
-                        style: TextStyle(
-                          color: Colors.grey[700],
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: OutlinedButton(
-                          onPressed: () {},
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: insight.actionColor,
-                            side: BorderSide(color: insight.actionColor),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                          ),
-                          child: Text(insight.action),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                    );
+                  },
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
+  }
+
+  Future<List<FinancialInsight>> _fetchAIInsights() async {
+    await Future.delayed(const Duration(seconds: 1));
+    return [
+      FinancialInsight(
+        title: 'High Dining Expenses',
+        description: 'You spent 20% more on dining this month. Consider cooking at home.',
+        action: 'View Details',
+        actionColor: Colors.amber,
+        icon: Icons.restaurant,
+      ),
+      FinancialInsight(
+        title: 'Savings Opportunity',
+        description: 'Increase savings by 5% to meet your goals faster.',
+        action: 'Adjust Savings',
+        actionColor: Colors.green,
+        icon: Icons.savings,
+      ),
+      FinancialInsight(
+        title: 'Subscription Review',
+        description: 'You have unused subscriptions costing 30/month.',
+        action: 'Review',
+        actionColor: Colors.blue,
+        icon: Icons.subscriptions,
+      ),
+    ];
   }
 
   Widget _buildSpendingTrends() {
@@ -1021,17 +1188,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                 color: Color(0xFF2B3A55),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8), 
             ListView.builder(
               physics: const NeverScrollableScrollPhysics(),
               shrinkWrap: true,
               itemCount: _spendingTrends.length,
               itemBuilder: (context, index) {
                 final trend = _spendingTrends[index];
-                final isIncreasing = trend.trend > 0;
-
+                final isLast = index == _spendingTrends.length - 1;
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+                  padding: EdgeInsets.only(bottom: isLast ? 0 : 16), // No bottom padding for last item
                   child: Row(
                     children: [
                       Container(
@@ -1093,7 +1259,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: isIncreasing
+                          color: trend.trend > 0
                               ? Colors.red.withOpacity(0.1)
                               : Colors.green.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
@@ -1101,17 +1267,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                         child: Row(
                           children: [
                             Icon(
-                              isIncreasing
+                              trend.trend > 0
                                   ? Icons.arrow_upward
                                   : Icons.arrow_downward,
-                              color: isIncreasing ? Colors.red : Colors.green,
+                              color: trend.trend > 0 ? Colors.red : Colors.green,
                               size: 14,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               '${trend.trend.abs().toStringAsFixed(1)}%',
                               style: TextStyle(
-                                color: isIncreasing ? Colors.red : Colors.green,
+                                color: trend.trend > 0 ? Colors.red : Colors.green,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
@@ -1126,7 +1292,12 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             Center(
               child: TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SpendingScreen()),
+                  );
+                },
                 child: const Text(
                   'View All Categories',
                   style: TextStyle(
@@ -1233,33 +1404,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Credit Score',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2B3A55),
-                  ),
-                ),
-                OutlinedButton(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF2B3A55),
-                    side: const BorderSide(color: Color(0xFF2B3A55)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                  ),
-                  child: const Text('Check for Free'),
-                ),
-              ],
+            const Text(
+              'Credit Score',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2B3A55),
+              ),
             ),
             const SizedBox(height: 24),
             Row(
@@ -1350,39 +1501,44 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
             const SizedBox(height: 5),
-            Stack(
-              children: [
-                Container(
-                  height: 8,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    gradient: const LinearGradient(
-                      colors: [
-                        Colors.red,
-                        Colors.orange,
-                        Colors.yellow,
-                        Colors.lightGreen,
-                        Colors.green,
-                      ],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: (latestScore - 300) / 550 * MediaQuery.of(context).size.width * 0.8,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xFF2B3A55),
-                        width: 3,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final barWidth = constraints.maxWidth;
+                return Stack(
+                  children: [
+                    Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4),
+                        gradient: const LinearGradient(
+                          colors: [
+                            Colors.red,
+                            Colors.orange,
+                            Colors.yellow,
+                            Colors.lightGreen,
+                            Colors.green,
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ],
+                    Positioned(
+                      left: ((latestScore - 300) / 550 * barWidth).clamp(0, barWidth - 12),
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF2B3A55),
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 5),
             Row(
@@ -1963,12 +2119,14 @@ class _DashboardScreenState extends State<DashboardScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF2B3A55),
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF2B3A55),
+                  ),
                 ),
               ),
               Text(
@@ -2046,20 +2204,25 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             const SizedBox(height: 12),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildInvestmentDetailItem(
-                  label: 'Initial Investment',
-                  value: '\$10,000.00',
+                Expanded(
+                  child: _buildInvestmentDetailItem(
+                    label: 'Initial Investment',
+                    value: '\$10,000.00',
+                  ),
                 ),
-                _buildInvestmentDetailItem(
-                  label: 'Earnings',
-                  value: '+\$435.62',
-                  valueColor: Colors.green,
+                Expanded(
+                  child: _buildInvestmentDetailItem(
+                    label: 'Earnings',
+                    value: '+\$435.62',
+                    valueColor: Colors.green,
+                  ),
                 ),
-                _buildInvestmentDetailItem(
-                  label: 'Maturity Date',
-                  value: 'Jun 15, 2025',
+                Expanded(
+                  child: _buildInvestmentDetailItem(
+                    label: 'Maturity Date',
+                    value: 'Jun 15, 2025',
+                  ),
                 ),
               ],
             ),
@@ -2113,6 +2276,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             fontSize: 12,
             color: Colors.grey[600],
           ),
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 4),
         Text(
@@ -2122,6 +2286,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             fontWeight: FontWeight.w500,
             color: valueColor ?? Colors.black,
           ),
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
@@ -2433,7 +2598,7 @@ class WellnessMetric {
 
 class BudgetCategory {
   final String name;
-  final double spent;
+  double spent;
   final double budget;
   final Color color;
 

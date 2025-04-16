@@ -25,7 +25,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
     final uri = Uri.parse("https://openrouter.ai/api/v1/chat/completions");
     final headers = {
       "Authorization":
-          "Bearer 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",
+          "Bearer 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",
       "Content-Type": "application/json",
       "HTTP-Referer": "https://your-finance-app.com",
       "X-Title": "FinSight",
