@@ -1,7 +1,9 @@
 import 'package:finsight/exports/spending_export.dart';
 import 'package:finsight/models/monthly_spending.dart';
+import 'package:finsight/models/transaction.dart';
 import 'package:finsight/screens/sankey_graph.dart';
 import 'package:finsight/services/data_service.dart';
+import 'package:finsight/services/plaid_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
@@ -19,11 +21,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
   bool isLoading = true;
   int selectedMonthIndex = 0;
   int displayStartIndex = 0;
+  bool _usingPlaidData = false;
+  final PlaidService _plaidService = PlaidService();
+  final DataService _dataService = DataService();
 
   @override
   void initState() {
     super.initState();
-    loadData();
+    loadStaticData();
   }
 
   void _showSankeyDiagram() {
@@ -36,15 +41,128 @@ class _SpendingScreenState extends State<SpendingScreen> {
     );
   }
 
-  Future<void> loadData() async {
+  Future<void> loadStaticData() async {
+    setState(() {
+      isLoading = true;
+      _usingPlaidData = false;
+    });
+
     final spendingService = DataService();
     final spending = await spendingService.getMonthlySpending();
+    
+    if (mounted) {
+      setState(() {
+        monthlySpending = spending;
+        selectedMonthIndex = spending.length - 1;
+        displayStartIndex = (spending.length > 9) ? spending.length - 9 : 0;
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> loadPlaidData() async {
+    if (!mounted) return;
+    
     setState(() {
-      monthlySpending = spending;
-      selectedMonthIndex = spending.length - 1;
-      displayStartIndex = (spending.length > 9) ? spending.length - 9 : 0;
-      isLoading = false;
+      isLoading = true;
+      _usingPlaidData = true;
     });
+
+    try {
+      // Check if we have a Plaid connection
+      final hasConnection = await _plaidService.hasPlaidConnection();
+      if (!hasConnection) {
+        // If no connection, fall back to static data
+        await loadStaticData();
+        return;
+      }
+
+      // Fetch transactions from Plaid
+      final now = DateTime.now();
+      final oneYearAgo = DateTime(now.year - 1, now.month, now.day);
+      
+      final transactions = await _plaidService.fetchTransactions(
+        context: context,
+        startDate: oneYearAgo,
+        endDate: now,
+      );
+
+      // Process transactions into monthly spending data
+      final processedData = processTransactions(transactions);
+      
+      if (mounted) {
+        setState(() {
+          monthlySpending = processedData;
+          selectedMonthIndex = processedData.length - 1;
+          displayStartIndex = (processedData.length > 9) ? processedData.length - 9 : 0;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading Plaid data: $e');
+      // Fall back to static data if there's an error
+      await loadStaticData();
+    }
+  }
+
+  List<MonthlySpending> processTransactions(List<Transaction> transactions) {
+    // Group transactions by month
+    final Map<String, List<Transaction>> transactionsByMonth = {};
+    
+    for (final transaction in transactions) {
+      final monthKey = DateFormat('yyyy-MM').format(transaction.date);
+      if (!transactionsByMonth.containsKey(monthKey)) {
+        transactionsByMonth[monthKey] = [];
+      }
+      transactionsByMonth[monthKey]!.add(transaction);
+    }
+
+    // Create MonthlySpending objects for each month
+    final List<MonthlySpending> result = [];
+    
+    transactionsByMonth.forEach((key, txList) {
+      final date = DateFormat('yyyy-MM').parse(key);
+      
+      // Calculate category breakdown
+      final Map<String, double> categoryBreakdown = {};
+      double totalExpenses = 0;
+      double totalIncome = 0;
+      
+      for (final tx in txList) {
+        if (tx.transactionType.toLowerCase() == 'expense' || 
+            tx.amount > 0) { // Treating positive amounts as expenses
+          if (!categoryBreakdown.containsKey(tx.category)) {
+            categoryBreakdown[tx.category] = 0;
+          }
+          categoryBreakdown[tx.category] = categoryBreakdown[tx.category]! + tx.amount;
+          totalExpenses += tx.amount;
+        } else {
+          totalIncome += tx.amount.abs();
+        }
+      }
+
+      // Create and add the monthly spending object
+      final monthlySpend = MonthlySpending(
+        date: date,
+        groceries: categoryBreakdown['Groceries'] ?? 0,
+        utilities: categoryBreakdown['Utilities'] ?? 0,
+        rent: categoryBreakdown['Rent'] ?? 0,
+        transportation: categoryBreakdown['Transportation'] ?? 0,
+        entertainment: categoryBreakdown['Entertainment'] ?? 0,
+        diningOut: categoryBreakdown['Dining Out'] ?? 0,
+        shopping: categoryBreakdown['Shopping'] ?? 0,
+        healthcare: categoryBreakdown['Healthcare'] ?? 0,
+        insurance: categoryBreakdown['Insurance'] ?? 0,
+        miscellaneous: categoryBreakdown['Miscellaneous'] ?? 0,
+        earnings: totalIncome,
+      );
+      
+      result.add(monthlySpend);
+    });
+
+    // Sort by date
+    result.sort((a, b) => a.date.compareTo(b.date));
+    return result;
   }
 
   void _updateDisplayWindow() {
@@ -60,11 +178,66 @@ class _SpendingScreenState extends State<SpendingScreen> {
     }
   }
 
+  Future<void> _handleRefresh() async {
+    // Toggle between Plaid and static data
+    if (_usingPlaidData) {
+      await loadStaticData();
+    } else {
+      await loadPlaidData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (monthlySpending.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF2B3A55),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Spending',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.white),
+                      onPressed: _handleRefresh,
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _handleRefresh,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: const Center(
+                      child: Text('No spending data available.'),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -180,271 +353,274 @@ class _SpendingScreenState extends State<SpendingScreen> {
               ),
             ),
             Expanded(
-              child: Container(
-                margin: const EdgeInsets.only(top: 16),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    Container(
-                      height: 200, // Increased height to accommodate legend
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          // Legend
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _buildLegendItem(
-                                  'Spending', const Color(0xFF2B3A55)),
-                              const SizedBox(width: 24),
-                              _buildLegendItem(
-                                  'Income', const Color(0xFFE5BA73)),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Expanded(
-                            child: BarChart(
-                              BarChartData(
-                                alignment: BarChartAlignment.spaceAround,
-                                maxY: monthlySpending
-                                        .map((s) => s.income ?? 0)
-                                        .reduce((a, b) => a > b ? a : b) *
-                                    1.2,
-                                barTouchData: BarTouchData(
-                                  touchTooltipData: BarTouchTooltipData(
-                                    getTooltipItem:
-                                        (group, groupIndex, rod, rodIndex) {
-                                      String label =
-                                          rod.color == const Color(0xFF2B3A55)
-                                              ? 'Spent'
-                                              : 'Earned';
-                                      double value =
-                                          monthlySpending[group.x.toInt()]
-                                              .totalSpent;
-                                      if (rod.color ==
-                                          const Color(0xFFE5BA73)) {
-                                        value = monthlySpending[group.x.toInt()]
-                                                .income ??
-                                            0;
-                                      }
-                                      return BarTooltipItem(
-                                        '$label:\n${NumberFormat.currency(symbol: '\$').format(value)}',
-                                        const TextStyle(color: Colors.black),
+              child: RefreshIndicator(
+                onRefresh: _handleRefresh,
+                child: Container(
+                  margin: const EdgeInsets.only(top: 16),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      Container(
+                        height: 200, // Increased height to accommodate legend
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            // Legend
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _buildLegendItem(
+                                    'Spending', const Color(0xFF2B3A55)),
+                                const SizedBox(width: 24),
+                                _buildLegendItem(
+                                    'Income', const Color(0xFFE5BA73)),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Expanded(
+                              child: BarChart(
+                                BarChartData(
+                                  alignment: BarChartAlignment.spaceAround,
+                                  maxY: monthlySpending
+                                          .map((s) => s.income ?? 0)
+                                          .reduce((a, b) => a > b ? a : b) *
+                                      1.2,
+                                  barTouchData: BarTouchData(
+                                    touchTooltipData: BarTouchTooltipData(
+                                      getTooltipItem:
+                                          (group, groupIndex, rod, rodIndex) {
+                                        String label =
+                                            rod.color == const Color(0xFF2B3A55)
+                                                ? 'Spent'
+                                                : 'Earned';
+                                        double value =
+                                            monthlySpending[group.x.toInt()]
+                                                .totalSpent;
+                                        if (rod.color ==
+                                            const Color(0xFFE5BA73)) {
+                                          value = monthlySpending[group.x.toInt()]
+                                                  .income ??
+                                              0;
+                                        }
+                                        return BarTooltipItem(
+                                          '$label:\n${NumberFormat.currency(symbol: '\$').format(value)}',
+                                          const TextStyle(color: Colors.black),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  titlesData: FlTitlesData(
+                                    leftTitles: AxisTitles(
+                                      sideTitles: SideTitles(
+                                        showTitles: true,
+                                        reservedSize: 40,
+                                        getTitlesWidget: (value, meta) {
+                                          return Text(
+                                            '\$${(value / 1000).toStringAsFixed(1)}k',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.grey,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    bottomTitles: AxisTitles(
+                                      sideTitles: SideTitles(
+                                        showTitles: true,
+                                        getTitlesWidget: (value, meta) {
+                                          final actualIndex =
+                                              value.toInt() + displayStartIndex;
+                                          if (actualIndex >=
+                                              monthlySpending.length) {
+                                            return const SizedBox.shrink();
+                                          }
+                                          return Text(
+                                            DateFormat('MMM').format(
+                                                monthlySpending[actualIndex]
+                                                    .date),
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.grey,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    rightTitles: const AxisTitles(),
+                                    topTitles: const AxisTitles(),
+                                  ),
+                                  borderData: FlBorderData(show: false),
+                                  gridData: FlGridData(
+                                    show: true,
+                                    drawVerticalLine: false,
+                                    horizontalInterval: 1000,
+                                    getDrawingHorizontalLine: (value) {
+                                      return FlLine(
+                                        color: Colors.grey.withOpacity(0.2),
+                                        strokeWidth: 1,
                                       );
                                     },
                                   ),
-                                ),
-                                titlesData: FlTitlesData(
-                                  leftTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                      showTitles: true,
-                                      reservedSize: 40,
-                                      getTitlesWidget: (value, meta) {
-                                        return Text(
-                                          '\$${(value / 1000).toStringAsFixed(1)}k',
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  bottomTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                      showTitles: true,
-                                      getTitlesWidget: (value, meta) {
-                                        final actualIndex =
-                                            value.toInt() + displayStartIndex;
-                                        if (actualIndex >=
-                                            monthlySpending.length) {
-                                          return const SizedBox.shrink();
-                                        }
-                                        return Text(
-                                          DateFormat('MMM').format(
-                                              monthlySpending[actualIndex]
-                                                  .date),
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  rightTitles: const AxisTitles(),
-                                  topTitles: const AxisTitles(),
-                                ),
-                                borderData: FlBorderData(show: false),
-                                gridData: FlGridData(
-                                  show: true,
-                                  drawVerticalLine: false,
-                                  horizontalInterval: 1000,
-                                  getDrawingHorizontalLine: (value) {
-                                    return FlLine(
-                                      color: Colors.grey.withOpacity(0.2),
-                                      strokeWidth: 1,
+                                  barGroups: monthlySpending
+                                      .asMap()
+                                      .entries
+                                      .where((entry) =>
+                                          entry.key >= displayStartIndex &&
+                                          entry.key < displayStartIndex + 9 &&
+                                          entry.key < monthlySpending.length)
+                                      .map((entry) {
+                                    final double width = 8;
+                                    final double gap = 4;
+                                    return BarChartGroupData(
+                                      x: entry.key - displayStartIndex,
+                                      groupVertically: false,
+                                      barRods: [
+                                        BarChartRodData(
+                                          toY: entry.value.totalSpent,
+                                          color: entry.key == selectedMonthIndex
+                                              ? const Color(0xFF2B3A55)
+                                              : const Color(0xFF2B3A55)
+                                                  .withOpacity(0.3),
+                                          width: width,
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                        BarChartRodData(
+                                          toY: entry.value.income ?? 0,
+                                          color: entry.key == selectedMonthIndex
+                                              ? const Color(0xFFE5BA73)
+                                              : const Color(0xFFE5BA73)
+                                                  .withOpacity(0.3),
+                                          width: width,
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ],
+                                      barsSpace: gap,
                                     );
-                                  },
+                                  }).toList(),
                                 ),
-                                barGroups: monthlySpending
-                                    .asMap()
-                                    .entries
-                                    .where((entry) =>
-                                        entry.key >= displayStartIndex &&
-                                        entry.key < displayStartIndex + 9 &&
-                                        entry.key < monthlySpending.length)
-                                    .map((entry) {
-                                  final double width = 8;
-                                  final double gap = 4;
-                                  return BarChartGroupData(
-                                    x: entry.key - displayStartIndex,
-                                    groupVertically: false,
-                                    barRods: [
-                                      BarChartRodData(
-                                        toY: entry.value.totalSpent,
-                                        color: entry.key == selectedMonthIndex
-                                            ? const Color(0xFF2B3A55)
-                                            : const Color(0xFF2B3A55)
-                                                .withOpacity(0.3),
-                                        width: width,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                      BarChartRodData(
-                                        toY: entry.value.income ?? 0,
-                                        color: entry.key == selectedMonthIndex
-                                            ? const Color(0xFFE5BA73)
-                                            : const Color(0xFFE5BA73)
-                                                .withOpacity(0.3),
-                                        width: width,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                    ],
-                                    barsSpace: gap,
-                                  );
-                                }).toList(),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'BREAKDOWN',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            height: 240,
-                            child: Stack(
-                              alignment: Alignment.center,
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                PieChart(
-                                  PieChartData(
-                                    sections: breakdown.entries
-                                        .map((e) => PieChartSectionData(
-                                              value: e.value,
-                                              color: _getCategoryColor(e.key),
-                                              radius: 20,
-                                              showTitle: false,
-                                            ))
-                                        .toList(),
-                                    sectionsSpace: 2,
-                                    centerSpaceRadius: 100,
+                                Text(
+                                  'BREAKDOWN',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey,
+                                    letterSpacing: 1.2,
                                   ),
                                 ),
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Text(
-                                      'Total spend',
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 14,
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              height: 240,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  PieChart(
+                                    PieChartData(
+                                      sections: breakdown.entries
+                                          .map((e) => PieChartSectionData(
+                                                value: e.value,
+                                                color: _getCategoryColor(e.key),
+                                                radius: 20,
+                                                showTitle: false,
+                                              ))
+                                          .toList(),
+                                      sectionsSpace: 2,
+                                      centerSpaceRadius: 100,
+                                    ),
+                                  ),
+                                  Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text(
+                                        'Total spend',
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        NumberFormat.currency(symbol: '\$')
+                                            .format(totalSpend),
+                                        style: const TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2B3A55),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ...breakdown.entries
+                                .where((e) => !includeBills
+                                    ? !['Utilities', 'Rent', 'Insurance']
+                                        .contains(e.key)
+                                    : true)
+                                .map(
+                                  (entry) => ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: _getCategoryColor(entry.key)
+                                            .withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(
+                                        _getCategoryIcon(entry.key),
+                                        color: _getCategoryColor(entry.key),
+                                        size: 20,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      NumberFormat.currency(symbol: '\$')
-                                          .format(totalSpend),
+                                    title: Text(
+                                      entry.key,
                                       style: const TextStyle(
-                                        fontSize: 24,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      '${(entry.value / totalSpend * 100).toStringAsFixed(0)}% of spend',
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    trailing: Text(
+                                      NumberFormat.currency(symbol: '\$')
+                                          .format(entry.value),
+                                      style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         color: Color(0xFF2B3A55),
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          ...breakdown.entries
-                              .where((e) => !includeBills
-                                  ? !['Utilities', 'Rent', 'Insurance']
-                                      .contains(e.key)
-                                  : true)
-                              .map(
-                                (entry) => ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: _getCategoryColor(entry.key)
-                                          .withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Icon(
-                                      _getCategoryIcon(entry.key),
-                                      color: _getCategoryColor(entry.key),
-                                      size: 20,
-                                    ),
-                                  ),
-                                  title: Text(
-                                    entry.key,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    '${(entry.value / totalSpend * 100).toStringAsFixed(0)}% of spend',
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  trailing: Text(
-                                    NumberFormat.currency(symbol: '\$')
-                                        .format(entry.value),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF2B3A55),
-                                    ),
                                   ),
                                 ),
-                              ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
