@@ -14,7 +14,8 @@ class CommunityForumScreen extends StatefulWidget {
   State<CommunityForumScreen> createState() => _CommunityForumScreenState();
 }
 
-class _CommunityForumScreenState extends State<CommunityForumScreen> with SingleTickerProviderStateMixin {
+class _CommunityForumScreenState extends State<CommunityForumScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
@@ -80,7 +81,8 @@ class _CommunityForumScreenState extends State<CommunityForumScreen> with Single
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please sign in to view notifications')),
+                  const SnackBar(
+                      content: Text('Please sign in to view notifications')),
                 );
               }
             },
@@ -181,7 +183,8 @@ class _CommunityForumScreenState extends State<CommunityForumScreen> with Single
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           if (type == 'my_posts' && auth.currentUser == null) {
-            return const Center(child: Text('Please sign in to see your posts'));
+            return const Center(
+                child: Text('Please sign in to see your posts'));
           } else {
             return Center(
               child: Column(
@@ -226,7 +229,8 @@ class _CommunityForumScreenState extends State<CommunityForumScreen> with Single
               postId: doc.id,
               title: postData['title'] ?? 'No title',
               content: postData['content'] ?? 'No content',
-              author: postData['authorName'] ?? auth.currentUser?.email ?? 'User',
+              author:
+                  postData['authorName'] ?? auth.currentUser?.email ?? 'User',
               authorId: postData['userId'] ?? '',
               timestamp: postData['timestamp'] != null
                   ? (postData['timestamp'] as Timestamp).toDate()
@@ -274,8 +278,9 @@ class PostCard extends StatelessWidget {
     final timeAgo = _getTimeAgo(timestamp);
 
     return Card(
+      color: Colors.white,
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 0,
+      elevation: 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: Colors.grey.shade200),
@@ -314,7 +319,8 @@ class PostCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Wrap( // Replaced Row with Wrap to prevent overflow
+                        Wrap(
+                          // Replaced Row with Wrap to prevent overflow
                           spacing: 6,
                           runSpacing: 4,
                           children: [
@@ -371,7 +377,9 @@ class PostCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                content.length > 100 ? '${content.substring(0, 100)}...' : content,
+                content.length > 100
+                    ? '${content.substring(0, 100)}...'
+                    : content,
                 style: const TextStyle(
                   fontSize: 14,
                   color: Colors.black87,
@@ -396,7 +404,8 @@ class PostCard extends StatelessWidget {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Icon(Icons.thumb_up_outlined, size: 16, color: Colors.grey[600]),
+                  Icon(Icons.thumb_up_outlined,
+                      size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
                     '$likes',
@@ -406,7 +415,8 @@ class PostCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  Icon(Icons.comment_outlined, size: 16, color: Colors.grey[600]),
+                  Icon(Icons.comment_outlined,
+                      size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
                     '$commentCount',
@@ -606,7 +616,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       });
 
       // Add notification and reputation tracking
-      final postDoc = await _firestore.collection('forum_posts').doc(widget.postId).get();
+      final postDoc =
+          await _firestore.collection('forum_posts').doc(widget.postId).get();
       final postData = postDoc.data() as Map<String, dynamic>?;
       if (postData != null) {
         final authorId = postData['userId'];
@@ -643,7 +654,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: const Color(0xFF2B3A55),
-        title: const Text('Post Details', style: TextStyle(color: Colors.white)),
+        title:
+            const Text('Post Details', style: TextStyle(color: Colors.white)),
         actions: [
           IconButton(
             icon: const Icon(Icons.share_outlined, color: Colors.white),
@@ -655,7 +667,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       ),
       body: SafeArea(
         child: StreamBuilder<DocumentSnapshot>(
-          stream: _firestore.collection('forum_posts').doc(widget.postId).snapshots(),
+          stream: _firestore
+              .collection('forum_posts')
+              .doc(widget.postId)
+              .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -694,11 +709,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                 children: [
                                   CircleAvatar(
                                     radius: 20,
-                                    backgroundColor: const Color(0xFF2B3A55).withOpacity(0.1),
+                                    backgroundColor: const Color(0xFF2B3A55)
+                                        .withOpacity(0.1),
                                     child: Text(
                                       postData['authorName'] != null &&
-                                              (postData['authorName'] as String).isNotEmpty
-                                          ? (postData['authorName'] as String)[0].toUpperCase()
+                                              (postData['authorName'] as String)
+                                                  .isNotEmpty
+                                          ? (postData['authorName']
+                                                  as String)[0]
+                                              .toUpperCase()
                                           : 'U',
                                       style: const TextStyle(
                                         color: Color(0xFF2B3A55),
@@ -709,7 +728,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           postData['authorName'] ??
@@ -721,7 +741,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                           ),
                                         ),
                                         Text(
-                                          DateFormat('MMM d, yyyy • h:mm a').format(timestamp),
+                                          DateFormat('MMM d, yyyy • h:mm a')
+                                              .format(timestamp),
                                           style: TextStyle(
                                             color: Colors.grey[600],
                                             fontSize: 12,
@@ -739,7 +760,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE5BA73).withOpacity(0.2),
+                                  color:
+                                      const Color(0xFFE5BA73).withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
@@ -774,7 +796,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                   width: double.infinity,
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.grey.shade200),
+                                    border:
+                                        Border.all(color: Colors.grey.shade200),
                                   ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
@@ -796,15 +819,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                       child: Row(
                                         children: [
                                           Icon(
-                                            _isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                                            _isLiked
+                                                ? Icons.thumb_up
+                                                : Icons.thumb_up_outlined,
                                             size: 20,
-                                            color: _isLiked ? const Color(0xFFE5BA73) : Colors.grey[600],
+                                            color: _isLiked
+                                                ? const Color(0xFFE5BA73)
+                                                : Colors.grey[600],
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
                                             '${postData['likes'] ?? 0}',
                                             style: TextStyle(
-                                              color: _isLiked ? const Color(0xFFE5BA73) : Colors.grey[600],
+                                              color: _isLiked
+                                                  ? const Color(0xFFE5BA73)
+                                                  : Colors.grey[600],
                                             ),
                                           ),
                                         ],
@@ -819,7 +848,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                       const SizedBox(width: 4),
                                       Text(
                                         '${postData['views'] ?? 0}',
-                                        style: TextStyle(color: Colors.grey[600]),
+                                        style:
+                                            TextStyle(color: Colors.grey[600]),
                                       ),
                                     ],
                                   ),
@@ -850,13 +880,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               .orderBy('timestamp', descending: true)
                               .snapshots(),
                           builder: (context, commentSnapshot) {
-                            if (commentSnapshot.connectionState == ConnectionState.waiting) {
+                            if (commentSnapshot.connectionState ==
+                                ConnectionState.waiting) {
                               return const Center(
-                                child: CircularProgressIndicator(color: Color(0xFFE5BA73)),
+                                child: CircularProgressIndicator(
+                                    color: Color(0xFFE5BA73)),
                               );
                             }
 
-                            if (!commentSnapshot.hasData || commentSnapshot.data!.docs.isEmpty) {
+                            if (!commentSnapshot.hasData ||
+                                commentSnapshot.data!.docs.isEmpty) {
                               return Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Center(
@@ -891,26 +924,39 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               shrinkWrap: true,
                               itemCount: commentSnapshot.data!.docs.length,
                               separatorBuilder: (context, index) =>
-                                  const Divider(height: 1, indent: 16, endIndent: 16),
+                                  const Divider(
+                                      height: 1, indent: 16, endIndent: 16),
                               itemBuilder: (context, index) {
-                                final commentDoc = commentSnapshot.data!.docs[index];
-                                final commentData = commentDoc.data() as Map<String, dynamic>;
-                                final DateTime commentTime = commentData['timestamp'] != null
-                                    ? (commentData['timestamp'] as Timestamp).toDate()
-                                    : DateTime.now();
+                                final commentDoc =
+                                    commentSnapshot.data!.docs[index];
+                                final commentData =
+                                    commentDoc.data() as Map<String, dynamic>;
+                                final DateTime commentTime =
+                                    commentData['timestamp'] != null
+                                        ? (commentData['timestamp']
+                                                as Timestamp)
+                                            .toDate()
+                                        : DateTime.now();
 
                                 return Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 12),
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       CircleAvatar(
                                         radius: 16,
-                                        backgroundColor: const Color(0xFF2B3A55).withOpacity(0.1),
+                                        backgroundColor: const Color(0xFF2B3A55)
+                                            .withOpacity(0.1),
                                         child: Text(
                                           commentData['authorName'] != null &&
-                                                  (commentData['authorName'] as String).isNotEmpty
-                                              ? (commentData['authorName'] as String)[0].toUpperCase()
+                                                  (commentData['authorName']
+                                                          as String)
+                                                      .isNotEmpty
+                                              ? (commentData['authorName']
+                                                      as String)[0]
+                                                  .toUpperCase()
                                               : 'U',
                                           style: const TextStyle(
                                             color: Color(0xFF2B3A55),
@@ -922,12 +968,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Row(
                                               children: [
                                                 Text(
-                                                  commentData['authorName'] ?? 'User',
+                                                  commentData['authorName'] ??
+                                                      'User',
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 14,
@@ -935,7 +983,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                                 ),
                                                 const SizedBox(width: 8),
                                                 Text(
-                                                  DateFormat('MMM d • h:mm a').format(commentTime),
+                                                  DateFormat('MMM d • h:mm a')
+                                                      .format(commentTime),
                                                   style: TextStyle(
                                                     color: Colors.grey[600],
                                                     fontSize: 12,
@@ -946,7 +995,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                             const SizedBox(height: 4),
                                             Text(
                                               commentData['content'] ?? '',
-                                              style: const TextStyle(fontSize: 14),
+                                              style:
+                                                  const TextStyle(fontSize: 14),
                                             ),
                                           ],
                                         ),
@@ -976,7 +1026,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                     ],
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
                       Expanded(
@@ -1357,11 +1408,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 // Add image button
                 ElevatedButton.icon(
                   onPressed: _pickImage,
-                  icon: const Icon(Icons.photo_outlined, color: Color(0xFF2B3A55)),
-                  label: const Text('Add Image', style: TextStyle(color: Color(0xFF2B3A55))),
+                  icon: const Icon(Icons.photo_outlined,
+                      color: Color(0xFF2B3A55)),
+                  label: const Text('Add Image',
+                      style: TextStyle(color: Color(0xFF2B3A55))),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey[200],
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

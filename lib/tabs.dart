@@ -61,7 +61,7 @@ class _TabsState extends State<Tabs> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.search),
-            label: 'Transactions',
+            label: 'History',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.forum_outlined),
