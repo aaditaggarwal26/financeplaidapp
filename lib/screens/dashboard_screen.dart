@@ -1708,7 +1708,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<int?> _getPlaidCreditScore() async {
     if (_usePlaidData && _plaidAccounts.isNotEmpty) {
       try {
-        return 720 + (DateTime.now().millisecond % 80);
+        return 724;
       } catch (e) {
         print('Error getting credit score: $e');
       }
