@@ -32,7 +32,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
     };
 
     final prompt = genZMode
-        ? "Respond like a Gen-Z finance friend without markdown text and not long answers who knows money vibes 💸:\n$message"
+        ? "Respond like a Gen-Z finance friend without markdown text and not long answers who knows money vibes 💸. Don't go too overboard but still explain in genz/alpha way. Ensure no markdown formatting. Don't have the messages be too long, be reasonable:\n$message"
         : message;
 
     final body = jsonEncode({
