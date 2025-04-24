@@ -1,14 +1,18 @@
+// Imports for Flutter UI, painting, and math utilities.
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'dart:math';
 
+// A widget that displays a graphical representation of certificate of deposit (CD) growth.
 class CDGrowthWidget extends StatelessWidget {
+  // Constructor for the widget.
   const CDGrowthWidget({super.key});
 
+  // Builds a sized box containing the custom painter for the graph.
   @override
   Widget build(BuildContext context) {
     return const SizedBox(
-      height: 150,
+      height: 150, 
       child: CustomPaint(
         painter: CDGrowthPainter(),
       ),
@@ -16,75 +20,82 @@ class CDGrowthWidget extends StatelessWidget {
   }
 }
 
+// Custom painter for drawing the CD growth graph.
 class CDGrowthPainter extends CustomPainter {
+  // Constructor for the painter.
   const CDGrowthPainter();
 
+  // Paints the graph on the provided canvas.
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw axes
     final axesPaint = Paint()
-      ..color = Colors.grey.withOpacity(0.3)
-      ..strokeWidth = 1;
+      ..color = Colors.grey.withOpacity(0.3) 
+      ..strokeWidth = 1; 
 
-    var startX = 40.0;
+    // Defines the bounds for the graph.
+    var startX = 40.0; 
     var endX = size.width - 40;
-    var startY = size.height - 40;
+    var startY = size.height - 40; 
     var endY = 20.0;
 
-    // Y-axis
+    // Draws the Y-axis.
     canvas.drawLine(
       Offset(startX, startY),
       Offset(startX, endY),
       axesPaint,
     );
 
-    // X-axis
+    // Draws the X-axis.
     canvas.drawLine(
       Offset(startX, startY),
       Offset(endX, startY),
       axesPaint,
     );
 
-    // Draw the exponential curve
+    // Paint for drawing the exponential growth curve.
     final curvePaint = Paint()
-      ..color = const Color(0xFF2B3A55)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
+      ..color = const Color(0xFF2B3A55) 
+      ..strokeWidth = 2 
+      ..style = PaintingStyle.stroke; 
 
+    // Path for the exponential curve.
     final path = Path();
-    path.moveTo(startX, startY); // Start from bottom left
+    path.moveTo(startX, startY);
 
-    // Calculate points for smooth exponential curve
+    // Plots the exponential curve using a simple growth formula.
     for (double x = 0; x <= endX - startX; x++) {
-      double progress = x / (endX - startX);
-      double y = startY - (pow(1.045, progress * 3) - 1) * 50;
+      double progress = x / (endX - startX); 
+      double y = startY - (pow(1.045, progress * 3) - 1) * 50; 
       path.lineTo(startX + x, y);
     }
 
+    // Draws the curve on the canvas.
     canvas.drawPath(path, curvePaint);
 
-    // Draw points
+    // Paint for drawing key points on the curve.
     final pointPaint = Paint()
-      ..color = const Color(0xFFE5BA73)
-      ..style = PaintingStyle.fill;
+      ..color = const Color(0xFFE5BA73) 
+      ..style = PaintingStyle.fill; 
 
-    // Three points on the curve
+    // Defines three key points on the curve (start, middle, end).
     final points = [
-      Offset(startX, startY), // Initial investment
-      Offset((startX + endX) / 2, startY - 25), // Midpoint
-      Offset(endX, startY - 50), // Final value
+      Offset(startX, startY), 
+      Offset((startX + endX) / 2, startY - 25),
+      Offset(endX, startY - 50), 
     ];
 
+    // Draws each point as a small circle.
     for (var point in points) {
       canvas.drawCircle(point, 4, pointPaint);
     }
 
-    // Add Y-axis label ($15K)
+    // Style for the Y-axis label.
     final style = ui.ParagraphStyle(
       fontSize: 12,
       height: 1.0,
     );
 
+    // Creates a label for the Y-axis ("15K").
     final yAxisLabel = ui.ParagraphBuilder(style)
       ..pushStyle(ui.TextStyle(
         color: Colors.grey,
@@ -92,6 +103,7 @@ class CDGrowthPainter extends CustomPainter {
       ))
       ..addText('15K');
 
+    // Renders the Y-axis label.
     final yParagraph = yAxisLabel.build()
       ..layout(const ui.ParagraphConstraints(width: 40));
 
@@ -101,6 +113,7 @@ class CDGrowthPainter extends CustomPainter {
     );
   }
 
+  // Indicates that the painter does not need to repaint.
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

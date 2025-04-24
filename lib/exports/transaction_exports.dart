@@ -1,3 +1,4 @@
+// Imports for transaction model, PDF generation, file handling, and date formatting.
 import 'package:finsight/models/transaction.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -7,43 +8,58 @@ import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 
+// Handles exporting transactions to a PDF report.
 class TransactionExport {
+  // List of transactions to include in the report.
   final List<Transaction> transactions;
 
+  // Constructor requiring the transaction list.
   TransactionExport(this.transactions);
 
+  // Generates a PDF report and opens it for the user.
   Future<void> generateAndDownloadReport() async {
-    final pdf = pw.Document();
+    final pdf = pw.Document(); // Creates a new PDF document.
 
+    // Loads the Roboto font for consistent typography.
     final font = await rootBundle.load("assets/fonts/Roboto-Regular.ttf");
     final ttf = pw.Font.ttf(font);
+    // Loads the logo image for branding.
     final logoImage = pw.MemoryImage(
       (await rootBundle.load('assets/images/logo_cropped.png'))
           .buffer
           .asUint8List(),
     );
 
+    // Adds the main report page to the PDF.
     await _addMainReport(pdf, ttf, logoImage);
 
+    // Saves the PDF to the application documents directory.
     final output = await getApplicationDocumentsDirectory();
     final String fileName =
         'transaction_report_${DateFormat('yyyy-MM-dd').format(DateTime.now())}.pdf';
     final file = File('${output.path}/$fileName');
     await file.writeAsBytes(await pdf.save());
+    // Opens the generated PDF file.
     await OpenFile.open(file.path);
   }
 
+  // Builds the main report page with summary, category breakdown, and monthly overview.
   Future<void> _addMainReport(
       pw.Document pdf, pw.Font ttf, pw.MemoryImage logoImage) async {
+    // Calculates total credit (income) from transactions.
     final totalCredit = transactions
         .where((t) => t.transactionType == 'Credit')
         .fold(0.0, (sum, t) => sum + t.amount);
+    // Calculates total debit (expenses) from transactions.
     final totalDebit = transactions
         .where((t) => t.transactionType == 'Debit')
         .fold(0.0, (sum, t) => sum + t.amount);
+    // Tracks spending totals by category.
     final categoryTotals = <String, double>{};
+    // Tracks monthly totals for credits and debits.
     final monthlyTotals = <String, Map<String, double>>{};
 
+    // Aggregates transactions by category and month.
     for (var transaction in transactions) {
       if (transaction.transactionType == 'Debit') {
         categoryTotals[transaction.category] =
@@ -56,14 +72,17 @@ class TransactionExport {
               transaction.amount;
     }
 
+    // Calculates total spending across all categories.
     final totalSpend =
         categoryTotals.values.fold(0.0, (sum, amount) => sum + amount);
 
+    // Adds a page to the PDF with the report content.
     pdf.addPage(
       pw.Page(
         build: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
+            // Header with title, date, and logo.
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
@@ -85,12 +104,12 @@ class TransactionExport {
                     ),
                   ],
                 ),
-                pw.Image(logoImage, width: 60, height: 60),
+                pw.Image(logoImage, width: 60, height: 60), // Displays logo.
               ],
             ),
             pw.SizedBox(height: 20),
 
-            // Summary cards
+            // Summary cards for income, expenses, and net balance.
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
@@ -112,6 +131,7 @@ class TransactionExport {
             ),
             pw.SizedBox(height: 30),
 
+            // Spending breakdown by category with progress bars.
             pw.Text('Spending by Category',
                 style: pw.TextStyle(
                     font: ttf, fontSize: 16, fontWeight: pw.FontWeight.bold)),
@@ -142,6 +162,7 @@ class TransactionExport {
             }),
             pw.SizedBox(height: 30),
 
+            // Monthly overview table with income, expenses, and net.
             pw.Text('Monthly Overview',
                 style: pw.TextStyle(
                     font: ttf, fontSize: 16, fontWeight: pw.FontWeight.bold)),
@@ -174,11 +195,14 @@ class TransactionExport {
     );
   }
 
+  // Adds a detailed transaction list page to the PDF, if transactions exist.
   Future<void> _addDetailedTransactions(pw.Document pdf, pw.Font ttf) async {
+    // Filters out transactions with zero amount.
     final nonEmptyTransactions =
         transactions.where((t) => t.amount > 0).toList();
     if (nonEmptyTransactions.isEmpty) return;
 
+    // Adds a new page for detailed transactions.
     pdf.addPage(
       pw.Page(
         build: (context) => pw.Column(
@@ -218,6 +242,7 @@ class TransactionExport {
     );
   }
 
+  // Builds a summary card widget for income, expenses, or net balance.
   pw.Widget _buildSummaryCard(
       String title, String amount, PdfColor color, pw.Font ttf) {
     return pw.Container(
@@ -242,6 +267,7 @@ class TransactionExport {
     );
   }
 
+  // Builds a table header row with bold text.
   pw.TableRow _buildTableHeader(List<String> cells, pw.Font ttf) {
     return pw.TableRow(
       children: cells
@@ -255,6 +281,7 @@ class TransactionExport {
     );
   }
 
+  // Builds a table cell with optional color for text.
   pw.Widget _buildTableCell(String text, pw.Font ttf, {PdfColor? color}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.all(5),

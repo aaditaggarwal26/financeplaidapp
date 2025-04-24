@@ -1,11 +1,13 @@
+// All the imports for our app
+import 'package:flutter/material.dart';
 import 'package:finsight/screens/settings_screen.dart';
 import 'package:finsight/screens/spending_screen.dart';
 import 'package:finsight/screens/transitions_screen.dart';
-import 'package:flutter/material.dart';
 import 'package:finsight/screens/dashboard_screen.dart';
 import 'package:finsight/screens/ai_chat_screen.dart';
 import 'package:finsight/screens/forum_screen.dart';
 
+/// A widget that manages the bottom tab (nav bar) navigation for the app
 class Tabs extends StatefulWidget {
   const Tabs({super.key});
 
@@ -14,8 +16,10 @@ class Tabs extends StatefulWidget {
 }
 
 class _TabsState extends State<Tabs> {
+  // Holds the index of the currently selected tab
   int _currentIndex = 0;
 
+  // List of screens to display based on tab selection
   final List<Widget> _screens = [
     const DashboardScreen(),
     const SpendingScreen(),
@@ -28,7 +32,11 @@ class _TabsState extends State<Tabs> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+
+      // Displays the selected screen
       body: _screens[_currentIndex],
+
+      // Floating chat button to access AI assistant screen
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
@@ -39,6 +47,8 @@ class _TabsState extends State<Tabs> {
         backgroundColor: const Color(0xFFE5BA73),
         child: const Icon(Icons.chat, color: Color(0xFF2B3A55)),
       ),
+
+      // Bottom navigation bar to switch between different tabs
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
         type: BottomNavigationBarType.fixed,

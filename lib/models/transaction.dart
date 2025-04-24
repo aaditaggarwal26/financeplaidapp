@@ -1,3 +1,4 @@
+// Represents a financial transaction with key details like date, amount, and category.
 class Transaction {
   final DateTime date;
   final String description;
@@ -9,6 +10,7 @@ class Transaction {
   final bool isPersonal;
   final String? id;
 
+  // Constructor with required and optional fields.
   Transaction({
     required this.date,
     required this.description,
@@ -21,17 +23,19 @@ class Transaction {
     this.id,
   });
 
+  // Factory method to create a Transaction from a CSV map.
+  // Expects specific keys in the map and parses them into the correct types.
   factory Transaction.fromCsv(Map<String, dynamic> map) {
     return Transaction(
-      date: DateTime.parse(map['Date']),
+      date: DateTime.parse(map['Date']), // Converts string date to DateTime.
       description: map['Description'],
-      category: map['Category'],
-      amount: double.parse(map['Amount']),
-      account: map['Account'],
-      transactionType: map['Transaction_Type'],
-      cardId: map['Card_ID'],
-      isPersonal: false,
-      id: null,
+      category: map['Category'], 
+      amount: double.parse(map['Amount']), // Parses string to double.
+      account: map['Account'], 
+      transactionType: map['Transaction_Type'], // Maps to Credit/Debit.
+      cardId: map['Card_ID'], 
+      isPersonal: false, 
+      id: null, 
     );
   }
 }
