@@ -88,7 +88,6 @@ class _AIChatScreenState extends State<AIChatScreen> {
           style: TextStyle(
             fontWeight: FontWeight.w500,
             fontSize: 20,
-            color: Colors.white,
           ),
         ),
         backgroundColor: const Color(0xFF2B3A55),
