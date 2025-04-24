@@ -1,3 +1,4 @@
+// This screen displays spending and income data with visualizations like bar and pie charts.
 import 'package:finsight/exports/spending_export.dart';
 import 'package:finsight/models/monthly_spending.dart';
 import 'package:finsight/models/transaction.dart';
@@ -8,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
+// Main widget for the Spending screen, showing monthly financial data.
 class SpendingScreen extends StatefulWidget {
   const SpendingScreen({Key? key}) : super(key: key);
 
@@ -15,22 +17,33 @@ class SpendingScreen extends StatefulWidget {
   State<SpendingScreen> createState() => _SpendingScreenState();
 }
 
+// State class managing data loading, UI updates, and user interactions.
 class _SpendingScreenState extends State<SpendingScreen> {
+  // Toggle to include bills in the spending breakdown.
   bool includeBills = true;
+  // List of monthly spending data.
   List<MonthlySpending> monthlySpending = [];
+  // Flag to show loading state.
   bool isLoading = true;
+  // Index of the currently selected month.
   int selectedMonthIndex = 0;
+  // Starting index for the display window of months in the bar chart.
   int displayStartIndex = 0;
+  // Flag to indicate if Plaid data is being used instead of static data.
   bool _usingPlaidData = false;
+  // Service for fetching Plaid transactions.
   final PlaidService _plaidService = PlaidService();
+  // Service for handling static data.
   final DataService _dataService = DataService();
 
   @override
   void initState() {
     super.initState();
+    // Load static data when the screen initializes.
     loadStaticData();
   }
 
+  // Navigate to the Sankey diagram screen for the selected month.
   void _showSankeyDiagram() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -41,6 +54,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
     );
   }
 
+  // Load static spending data from the DataService.
   Future<void> loadStaticData() async {
     setState(() {
       isLoading = true;
@@ -50,6 +64,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
     final spendingService = DataService();
     final spending = await spendingService.getMonthlySpending();
     
+    // Update state only if the widget is still mounted.
     if (mounted) {
       setState(() {
         monthlySpending = spending;
@@ -60,6 +75,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
     }
   }
 
+  // Load transaction data from Plaid, falling back to static data if necessary.
   Future<void> loadPlaidData() async {
     if (!mounted) return;
     
@@ -69,15 +85,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
     });
 
     try {
-      // Check if we have a Plaid connection
+      // Check if there's an active Plaid connection.
       final hasConnection = await _plaidService.hasPlaidConnection();
       if (!hasConnection) {
-        // If no connection, fall back to static data
         await loadStaticData();
         return;
       }
 
-      // Fetch transactions from Plaid
+      // Fetch transactions for the past year.
       final now = DateTime.now();
       final oneYearAgo = DateTime(now.year - 1, now.month, now.day);
       
@@ -87,7 +102,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
         endDate: now,
       );
 
-      // Process transactions into monthly spending data
+      // Convert transactions into monthly spending data.
       final processedData = processTransactions(transactions);
       
       if (mounted) {
@@ -100,13 +115,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
       }
     } catch (e) {
       print('Error loading Plaid data: $e');
-      // Fall back to static data if there's an error
+      // Fall back to static data if Plaid fails.
       await loadStaticData();
     }
   }
 
+  // Process raw transactions into monthly spending data by category.
   List<MonthlySpending> processTransactions(List<Transaction> transactions) {
-    // Group transactions by month
+    // Group transactions by month (YYYY-MM format).
     final Map<String, List<Transaction>> transactionsByMonth = {};
     
     for (final transaction in transactions) {
@@ -117,20 +133,20 @@ class _SpendingScreenState extends State<SpendingScreen> {
       transactionsByMonth[monthKey]!.add(transaction);
     }
 
-    // Create MonthlySpending objects for each month
+    // Create MonthlySpending objects for each month.
     final List<MonthlySpending> result = [];
     
     transactionsByMonth.forEach((key, txList) {
       final date = DateFormat('yyyy-MM').parse(key);
       
-      // Calculate category breakdown
+      // Track spending by category and total income/expenses.
       final Map<String, double> categoryBreakdown = {};
       double totalExpenses = 0;
       double totalIncome = 0;
       
       for (final tx in txList) {
         if (tx.transactionType.toLowerCase() == 'expense' || 
-            tx.amount > 0) { // Treating positive amounts as expenses
+            tx.amount > 0) { // Positive amounts are treated as expenses.
           if (!categoryBreakdown.containsKey(tx.category)) {
             categoryBreakdown[tx.category] = 0;
           }
@@ -141,7 +157,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
         }
       }
 
-      // Create and add the monthly spending object
+      // Create a MonthlySpending object with categorized data.
       final monthlySpend = MonthlySpending(
         date: date,
         groceries: categoryBreakdown['Groceries'] ?? 0,
@@ -160,11 +176,12 @@ class _SpendingScreenState extends State<SpendingScreen> {
       result.add(monthlySpend);
     });
 
-    // Sort by date
+    // Sort months chronologically.
     result.sort((a, b) => a.date.compareTo(b.date));
     return result;
   }
 
+  // Adjust the display window for the bar chart to keep the selected month in view.
   void _updateDisplayWindow() {
     if (monthlySpending.length <= 9) {
       displayStartIndex = 0;
@@ -178,8 +195,8 @@ class _SpendingScreenState extends State<SpendingScreen> {
     }
   }
 
+  // Toggle between Plaid and static data on refresh.
   Future<void> _handleRefresh() async {
-    // Toggle between Plaid and static data
     if (_usingPlaidData) {
       await loadStaticData();
     } else {
@@ -189,12 +206,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Show a loading indicator while data is being fetched.
     if (isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
+    // Display a message if no spending data is available.
     if (monthlySpending.isEmpty) {
       return Scaffold(
         backgroundColor: const Color(0xFF2B3A55),
@@ -241,10 +260,12 @@ class _SpendingScreenState extends State<SpendingScreen> {
       );
     }
 
+    // Get data for the currently selected month.
     final currentMonth = monthlySpending[selectedMonthIndex];
     final breakdown = currentMonth.categoryBreakdown;
     final totalSpend = currentMonth.totalSpent;
 
+    // Main UI with bar chart, pie chart, and category breakdown.
     return Scaffold(
       backgroundColor: const Color(0xFF2B3A55),
       body: SafeArea(
@@ -265,12 +286,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
                   ),
                   Row(
                     children: [
+                      // Button to view the Sankey diagram.
                       IconButton(
                         icon: const Icon(Icons.waterfall_chart,
                             color: Colors.white),
                         tooltip: 'Money Flow',
                         onPressed: () => _showSankeyDiagram(),
                       ),
+                      // Button to export a spending report.
                       IconButton(
                         icon: const Icon(Icons.download, color: Colors.white),
                         onPressed: () async {
@@ -301,6 +324,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                 ],
               ),
             ),
+            // Month selector with navigation buttons.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Container(
@@ -364,12 +388,13 @@ class _SpendingScreenState extends State<SpendingScreen> {
                   child: ListView(
                     padding: EdgeInsets.zero,
                     children: [
+                      // Bar chart showing spending and income over months.
                       Container(
                         height: 200, // Increased height to accommodate legend
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           children: [
-                            // Legend
+                            // Legend for the bar chart.
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -508,6 +533,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                           ],
                         ),
                       ),
+                      // Category breakdown with a pie chart and list.
                       Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
@@ -533,6 +559,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
+                                  // Pie chart showing spending by category.
                                   PieChart(
                                     PieChartData(
                                       sections: breakdown.entries
@@ -572,6 +599,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                 ],
                               ),
                             ),
+                            // List of categories with amounts and percentages.
                             ...breakdown.entries
                                 .where((e) => !includeBills
                                     ? !['Utilities', 'Rent', 'Insurance']
@@ -630,6 +658,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
     );
   }
 
+  // Builds a legend item for the bar chart.
   Widget _buildLegendItem(String label, Color color) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -654,6 +683,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
     );
   }
 
+  // Returns a color for each spending category.
   Color _getCategoryColor(String category) {
     final colors = {
       'Groceries': const Color(0xFFE5BA73),
@@ -670,6 +700,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
     return colors[category] ?? Colors.grey;
   }
 
+  // Returns an icon for each spending category.
   IconData _getCategoryIcon(String category) {
     final icons = {
       'Groceries': Icons.shopping_cart,

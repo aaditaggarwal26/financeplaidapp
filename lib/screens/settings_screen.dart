@@ -1,9 +1,11 @@
+// Settings screen for user preferences and account management.
 import 'package:finsight/screens/about_screen.dart';
 import 'package:finsight/screens/help_qna_screen.dart';
 import 'package:finsight/screens/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+// Stateless widget for the settings screen.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -11,27 +13,34 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
+// State class for handling settings screen logic.
 class _SettingsScreenState extends State<SettingsScreen> {
+  // Firebase auth instance for user management.
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // Signs the user out and redirects to the login screen.
   Future<void> _signOut(BuildContext context) async {
     try {
       await _auth.signOut();
+      // Navigate to login screen after signing out.
       Navigator.of(context).pushReplacement(MaterialPageRoute(
         builder: (context) => LoginScreen(),
       ));
     } catch (e) {
+      // Show error if sign-out fails.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error signing out: $e')),
       );
     }
   }
 
+  // Shows a dialog for editing the user's display name.
   void _editNameDialog(BuildContext context) {
     final user = _auth.currentUser;
     final TextEditingController _nameController =
         TextEditingController(text: user?.displayName ?? '');
 
+    // Display the dialog for name editing.
     showDialog(
       context: context,
       builder: (context) {
@@ -46,6 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () => Navigator.pop(context),
               child: Text('Cancel'),
             ),
+            // Save the new name to Firebase.
             ElevatedButton(
               onPressed: () async {
                 final newName = _nameController.text.trim();
@@ -64,15 +74,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // Builds the UI for the settings screen.
   @override
   Widget build(BuildContext context) {
     final user = _auth.currentUser;
 
     return Scaffold(
+      // Dark background consistent with the app's theme.
       backgroundColor: const Color(0xFF2B3A55),
       body: SafeArea(
         child: Column(
           children: [
+            // Header for the settings screen.
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
@@ -88,6 +101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+            // User info card if the user is logged in.
             if (user != null) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -154,6 +168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ],
                           ),
                         ),
+                        // Button to trigger name editing dialog.
                         GestureDetector(
                           onTap: () => _editNameDialog(context),
                           child: Container(
@@ -178,6 +193,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ],
+            // Main settings list with sections.
             Expanded(
               child: Container(
                 margin: const EdgeInsets.only(top: 24),
@@ -190,6 +206,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   physics: BouncingScrollPhysics(),
                   padding: EdgeInsets.zero,
                   children: [
+                    // Preferences section for app settings.
                     _buildSettingsSection(
                       'PREFERENCES',
                       [
@@ -214,6 +231,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ],
                     ),
+                    // Support section for help and info.
                     _buildSettingsSection(
                       'SUPPORT',
                       [
@@ -245,6 +263,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ],
                     ),
+                    // Account section for user-related actions.
                     _buildSettingsSection(
                       'ACCOUNT',
                       [
@@ -261,6 +280,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           textColor: Colors.red[700],
                           iconColor: Colors.red[700],
                           onTap: () {
+                            // Show logout confirmation dialog.
                             showDialog(
                               context: context,
                               builder: (context) => _buildLogoutDialog(context),
@@ -270,6 +290,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                     SizedBox(height: 24),
+                    // App version info at the bottom.
                     Center(
                       child: Text(
                         'FinSight v1.0.2',
@@ -290,6 +311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // Builds the logout confirmation dialog.
   Widget _buildLogoutDialog(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(
@@ -344,6 +366,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SizedBox(height: 24),
             Row(
               children: [
+                // Cancel button to dismiss the dialog.
                 Expanded(
                   child: TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -364,6 +387,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 SizedBox(width: 12),
+                // Confirm logout button.
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
@@ -394,6 +418,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // Builds a settings section with a title and list of tiles.
   Widget _buildSettingsSection(String title, List<Widget> tiles) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -432,6 +457,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // Builds an individual settings tile with icon, title, and optional switch.
   Widget _buildSettingsTile({
     required IconData icon,
     required String title,

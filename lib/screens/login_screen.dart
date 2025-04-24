@@ -1,38 +1,51 @@
+// This screen handles user authentication, including login, signup, Google sign-in, and password reset.
 import 'dart:async';
 import 'package:finsight/tabs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+// Main widget for the login screen, using a stateful widget for dynamic UI updates.
 class LoginScreen extends StatefulWidget {
   @override
   _LoginScreenState createState() => _LoginScreenState();
 }
 
+// State class managing authentication logic and UI state.
 class _LoginScreenState extends State<LoginScreen> {
+  // Toggle between login and signup modes.
   bool isLogin = true;
+  // Control password visibility for input fields.
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
+  // Flag to show loading state during authentication.
   bool isLoading = false;
 
+  // Controllers for email, password, and confirm password input fields.
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
+  // Firebase Auth instance for authentication operations.
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // Stores any error messages from authentication attempts.
   String? errorMessage;
 
+  // Subscription to listen for auth state changes.
   late StreamSubscription<User?> _authStateSubscription;
 
+  // Google Sign-In instance configured for email scope.
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email'],
     signInOption: SignInOption.standard,
   );
 
+  // Handle Google Sign-In authentication.
   Future<void> _signInWithGoogle() async {
     print('entered method');
+    // Show loading state and clear any previous errors.
     setState(() {
       isLoading = true;
       errorMessage = null;
@@ -40,6 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
     print('finished set state');
 
     try {
+      // Initiate Google Sign-In and handle potential errors.
       final GoogleSignInAccount? googleUser =
           await _googleSignIn.signIn().catchError((error) {
         print('Google Sign In Error: $error');
@@ -48,6 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       print('sign in attempt completed');
 
+      // Check if the user cancelled the sign-in process.
       if (googleUser == null) {
         print('User cancelled the sign-in process');
         setState(() {
@@ -57,6 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Get Google authentication credentials.
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
@@ -66,12 +82,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
       print('got the tocken');
 
+      // Sign in to Firebase with the Google credential.
       await _auth.signInWithCredential(credential);
 
+      // Ensure the widget is still mounted before navigating.
       if (!mounted) return;
 
       print('about to push');
 
+      // Navigate to the main app tabs and show a success message.
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -84,10 +103,12 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (e) {
       print('Error during Google Sign In: $e');
+      // Display an error message if Google Sign-In fails.
       setState(() {
         errorMessage = 'Failed to sign in with Google';
       });
     } finally {
+      // Always clear the loading state.
       setState(() {
         isLoading = false;
       });
@@ -97,6 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    // Listen for auth state changes to automatically navigate if the user is already signed in.
     _authStateSubscription =
         FirebaseAuth.instance.authStateChanges().listen((User? user) {
       if (!mounted) return;
@@ -111,21 +133,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    // Clean up the auth state subscription to prevent memory leaks.
     _authStateSubscription.cancel();
     super.dispose();
   }
 
+  // Handle email and password login.
   Future<void> _signIn() async {
+    // Show loading state and clear previous errors.
     setState(() {
       isLoading = true;
       errorMessage = null;
     });
 
     try {
+      // Attempt to sign in with Firebase Auth.
       await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      // Navigate to the main app tabs and show a success message.
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -136,21 +163,26 @@ class _LoginScreenState extends State<LoginScreen> {
         const SnackBar(content: Text('Successfully logged in!')),
       );
     } on FirebaseAuthException catch (e) {
+      // Display Firebase-specific error messages.
       setState(() {
         errorMessage = e.message;
       });
     } catch (e) {
+      // Handle unexpected errors.
       setState(() {
         errorMessage = 'An error occurred';
       });
     } finally {
+      // Always clear the loading state.
       setState(() {
         isLoading = false;
       });
     }
   }
 
+  // Handle email and password signup.
   Future<void> _signUp() async {
+    // Check if passwords match before proceeding.
     if (_passwordController.text != _confirmPasswordController.text) {
       setState(() {
         errorMessage = 'Passwords do not match';
@@ -158,16 +190,19 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    // Show loading state and clear previous errors.
     setState(() {
       isLoading = true;
       errorMessage = null;
     });
 
     try {
+      // Create a new user with Firebase Auth.
       await _auth.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      // Navigate to the main app tabs and show a success message.
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -178,21 +213,26 @@ class _LoginScreenState extends State<LoginScreen> {
         const SnackBar(content: Text('Successfully signed up!')),
       );
     } on FirebaseAuthException catch (e) {
+      // Display Firebase-specific error messages.
       setState(() {
         errorMessage = e.message;
       });
     } catch (e) {
+      // Handle unexpected errors.
       setState(() {
         errorMessage = 'An error occurred';
       });
     } finally {
+      // Always clear the loading state.
       setState(() {
         isLoading = false;
       });
     }
   }
 
+  // Send a password reset email to the user.
   Future<void> _resetPassword() async {
+    // Ensure an email is provided before sending the reset email.
     if (_emailController.text.isEmpty) {
       setState(() {
         errorMessage = 'Please enter your email';
@@ -201,11 +241,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
+      // Send password reset email via Firebase Auth.
       await _auth.sendPasswordResetEmail(email: _emailController.text.trim());
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password reset email sent')),
       );
     } on FirebaseAuthException catch (e) {
+      // Display Firebase-specific error messages.
       setState(() {
         errorMessage = e.message;
       });
@@ -214,10 +256,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Main scaffold with a split-color background and authentication form.
     return Scaffold(
       backgroundColor: const Color(0xFF2B3A55),
       body: Stack(
         children: [
+          // Top section with a darker background for visual separation.
           Container(
             height: MediaQuery.of(context).size.height * 0.4,
             decoration: BoxDecoration(
@@ -254,6 +298,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+              // Bottom section with the authentication form.
               Expanded(
                 child: Container(
                   width: double.infinity,
@@ -269,6 +314,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: SingleChildScrollView(
                       child: Column(
                         children: [
+                          // Toggle between login and signup modes.
                           Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
@@ -360,6 +406,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 24),
+                          // Email input field.
                           TextField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
@@ -387,6 +434,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
+                          // Password input field with visibility toggle.
                           TextField(
                             controller: _passwordController,
                             obscureText: obscurePassword,
@@ -423,6 +471,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+                          // Confirm password field, shown only in signup mode.
                           if (!isLogin) ...[
                             const SizedBox(height: 16),
                             TextField(
@@ -463,6 +512,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ],
+                          // Forgot password link, shown only in login mode.
                           if (isLogin) ...[
                             Align(
                               alignment: Alignment.centerRight,
@@ -476,6 +526,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                           const SizedBox(height: 24),
+                          // Main action button for login or signup.
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
@@ -508,6 +559,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
+                          // Divider for alternative sign-in options.
                           Row(
                             children: [
                               Expanded(
@@ -536,6 +588,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ],
                           ),
                           const SizedBox(height: 16),
+                          // Google Sign-In button.
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton(
@@ -570,6 +623,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+                          // Display error messages if any.
                           if (errorMessage != null) ...[
                             const SizedBox(height: 16),
                             Text(

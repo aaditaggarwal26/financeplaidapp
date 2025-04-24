@@ -1,9 +1,12 @@
+// This screen visualizes income and expense flows using a Sankey diagram.
 import 'package:flutter/material.dart';
 import 'package:finsight/models/monthly_spending.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 
+// Main widget for the Sankey diagram screen, displaying financial flows for a given month.
 class SankeyDiagramScreen extends StatefulWidget {
+  // Monthly spending data to visualize.
   final MonthlySpending monthlySpending;
 
   const SankeyDiagramScreen({Key? key, required this.monthlySpending})
@@ -13,11 +16,14 @@ class SankeyDiagramScreen extends StatefulWidget {
   State<SankeyDiagramScreen> createState() => _SankeyDiagramScreenState();
 }
 
+// State class managing the UI and custom painting for the Sankey diagram.
 class _SankeyDiagramScreenState extends State<SankeyDiagramScreen> {
   @override
   Widget build(BuildContext context) {
+    // Main scaffold with an app bar, diagram, and legend.
     return Scaffold(
       appBar: AppBar(
+        // Display the month and year of the spending data.
         title: Text(
             'Money Flow - ${DateFormat('MMMM yyyy').format(widget.monthlySpending.date)}'),
         backgroundColor: const Color(0xFF2B3A55),
@@ -37,6 +43,7 @@ class _SankeyDiagramScreenState extends State<SankeyDiagramScreen> {
                   ),
                 ),
               ),
+              // Container for the custom Sankey diagram.
               SizedBox(
                 height: 600,
                 child: Padding(
@@ -49,6 +56,7 @@ class _SankeyDiagramScreenState extends State<SankeyDiagramScreen> {
                   ),
                 ),
               ),
+              // Legend explaining the colors used in the diagram.
               _buildLegend(),
             ],
           ),
@@ -57,6 +65,7 @@ class _SankeyDiagramScreenState extends State<SankeyDiagramScreen> {
     );
   }
 
+  // Build the legend for the Sankey diagram, showing categories and their colors.
   Widget _buildLegend() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -93,6 +102,7 @@ class _SankeyDiagramScreenState extends State<SankeyDiagramScreen> {
     );
   }
 
+  // Build a single legend item with a colored square and label.
   Widget _legendItem(String label, Color color) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -112,18 +122,23 @@ class _SankeyDiagramScreenState extends State<SankeyDiagramScreen> {
   }
 }
 
+// Custom painter for drawing the Sankey diagram.
 class SankeyDiagramPainter extends CustomPainter {
+  // Monthly spending data to visualize.
   final MonthlySpending monthlySpending;
 
   SankeyDiagramPainter({required this.monthlySpending});
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Calculate financial values from the monthly spending data.
     double grossIncome = monthlySpending.earnings ?? 0;
+    // Assume a fixed tax rate of 25%.
     double taxRate = 0.25;
     double taxes = grossIncome * taxRate;
     double netIncome = grossIncome - taxes;
 
+    // Aggregate expenses by category.
     double housing = monthlySpending.rent;
     double food = monthlySpending.groceries + monthlySpending.diningOut;
     double health = monthlySpending.healthcare;
@@ -134,17 +149,20 @@ class SankeyDiagramPainter extends CustomPainter {
     double insurance = monthlySpending.insurance;
     double misc = monthlySpending.miscellaneous;
 
+    // Calculate total expenses and savings.
     double totalExpenses =
         housing + food + health + lifestyle + utilities + insurance + misc;
     double savings = netIncome - totalExpenses;
-    if (savings < 0) savings = 0;
+    if (savings < 0) savings = 0; // Ensure savings is non-negative.
 
+    // Define horizontal positions for the three columns of the Sankey diagram.
     final List<double> columnPositions = [
       60,
       size.width * 0.4,
       size.width - 100,
     ];
 
+    // Map categories to their respective colors.
     final Map<String, Color> colors = {
       'grossIncome': const Color(0xFF8ECAE6),
       'netIncome': const Color(0xFFE5BA73),
@@ -159,26 +177,30 @@ class SankeyDiagramPainter extends CustomPainter {
       'misc': const Color(0xFF95A5A6),
     };
 
+    // Calculate the height scaling factor based on available space and gross income.
     double availableHeight = size.height - 60; // Leave space for labels
     double heightFactor = availableHeight / grossIncome;
 
     final double columnWidth = 40;
 
-    // First column - Gross Income
+    // Draw first column: Gross Income node.
     double startY = 30;
 
     _drawNode(canvas, 'Gross\nIncome', columnPositions[0], startY, columnWidth,
         grossIncome * heightFactor, colors['grossIncome']!);
 
+    // Display the gross income amount.
     _drawMoneyValue(canvas, grossIncome, columnPositions[0] + columnWidth / 2,
         startY + 250, true, true);
 
-    // Second column - Split into Net Income and Taxes
+    // Draw second column: Split into Taxes and Net Income.
     double taxY = startY;
     double netIncomeY = taxY + taxes * heightFactor + 5;
 
+    // Draw flow from Gross Income to Taxes.
     _drawFlow(canvas, columnPositions[0] + columnWidth, startY,
         columnPositions[1], taxY, taxes * heightFactor, colors['taxes']!);
+    // Draw flow from Gross Income to Net Income.
     _drawFlow(
         canvas,
         columnPositions[0] + columnWidth,
@@ -188,17 +210,20 @@ class SankeyDiagramPainter extends CustomPainter {
         netIncome * heightFactor,
         colors['netIncome']!);
 
+    // Draw Taxes and Net Income nodes.
     _drawNode(canvas, 'Taxes', columnPositions[1], taxY, columnWidth,
         taxes * heightFactor, colors['taxes']!);
     _drawNode(canvas, 'Net\nIncome', columnPositions[1], netIncomeY,
         columnWidth, netIncome * heightFactor, colors['netIncome']!);
 
+    // Display amounts for Taxes and Net Income.
     _drawMoneyValue(canvas, taxes, columnPositions[1] + columnWidth / 2,
         taxY + (taxes * heightFactor / 2) - 30, true, false);
 
     _drawMoneyValue(canvas, netIncome, columnPositions[1] + columnWidth / 2,
         netIncomeY + (netIncome * heightFactor / 2) - 30, true, false);
 
+    // List of expenses to display in the third column.
     List<Map<String, dynamic>> expenses = [
       {'name': 'Housing', 'amount': housing, 'color': colors['housing']!},
       {'name': 'Food', 'amount': food, 'color': colors['food']!},
@@ -209,22 +234,20 @@ class SankeyDiagramPainter extends CustomPainter {
       {'name': 'Health', 'amount': health, 'color': colors['health']!},
     ];
 
-    // Always include savings in the expense list
+    // Always include savings in the expense list.
     expenses.add(
         {'name': 'Savings', 'amount': savings, 'color': colors['savings']!});
 
-    // Sort expenses by amount (largest first)
+    // Sort expenses by amount (largest first) for visual clarity.
     expenses.sort(
         (a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
 
-    // Make sure netIncome flows fully connect with all expenses
-    // Ensure net income node extends far enough to connect all flows
+    // Ensure Net Income flows connect properly with all expenses.
     double fullNetIncomeHeight = netIncome * heightFactor;
     double expensesTotalHeight = expenses.fold(0.0,
         (sum, expense) => sum + ((expense['amount'] as double) * heightFactor));
 
-    // If the net income height is less than the total expenses height,
-    // adjust how we distribute the flows
+    // Adjust flow heights if Net Income height is less than total expenses height.
     double adjustmentFactor = 1.0;
     if (fullNetIncomeHeight < expensesTotalHeight) {
       adjustmentFactor = fullNetIncomeHeight / expensesTotalHeight;
@@ -233,19 +256,23 @@ class SankeyDiagramPainter extends CustomPainter {
     double currentSourceY = netIncomeY;
     double currentTargetY = startY;
 
+    // Draw flows and nodes for each expense.
     for (var i = 0; i < expenses.length; i++) {
       var expense = expenses[i];
-      if (expense['amount'] <= 0) continue;
+      if (expense['amount'] <= 0) continue; // Skip zero-amount expenses.
 
       double expenseHeight =
           expense['amount'] * heightFactor * adjustmentFactor;
 
+      // Draw flow from Net Income to the expense.
       _drawFlow(canvas, columnPositions[1] + columnWidth, currentSourceY,
           columnPositions[2], currentTargetY, expenseHeight, expense['color']);
 
+      // Draw the expense node.
       _drawNode(canvas, expense['name'], columnPositions[2], currentTargetY,
           columnWidth, expenseHeight, expense['color']);
 
+      // Display the expense amount.
       _drawMoneyValue(
           canvas,
           expense['amount'] as double,
@@ -254,11 +281,13 @@ class SankeyDiagramPainter extends CustomPainter {
           false,
           false);
 
+      // Update positions for the next flow/node.
       currentSourceY += expenseHeight;
       currentTargetY += expenseHeight;
     }
   }
 
+  // Draw a rectangular node with a label.
   void _drawNode(Canvas canvas, String label, double x, double y, double width,
       double height, Color color) {
     final rect = Rect.fromLTWH(x, y, width, height);
@@ -268,6 +297,7 @@ class SankeyDiagramPainter extends CustomPainter {
 
     canvas.drawRect(rect, paint);
 
+    // Only draw the label if the node is tall enough.
     if (height >= 20) {
       final textSpan = TextSpan(
         text: label,
@@ -288,10 +318,12 @@ class SankeyDiagramPainter extends CustomPainter {
     }
   }
 
+  // Draw a curved flow between two points with a specified height and color.
   void _drawFlow(Canvas canvas, double startX, double startY, double endX,
       double endY, double height, Color color) {
     final path = Path();
 
+    // Use a control point for smooth cubic Bezier curves.
     final controlPointX = (startX + endX) / 2;
 
     path.moveTo(startX, startY);
@@ -301,12 +333,14 @@ class SankeyDiagramPainter extends CustomPainter {
         startX, startY + height);
     path.close();
 
+    // Draw the filled flow with slight transparency.
     final paint = Paint()
       ..color = color.withOpacity(0.7)
       ..style = PaintingStyle.fill;
 
     canvas.drawPath(path, paint);
 
+    // Draw an outline for better visual definition.
     final outlinePaint = Paint()
       ..color = color.withOpacity(0.9)
       ..style = PaintingStyle.stroke
@@ -315,6 +349,7 @@ class SankeyDiagramPainter extends CustomPainter {
     canvas.drawPath(path, outlinePaint);
   }
 
+  // Draw a formatted money value with a white background for readability.
   void _drawMoneyValue(Canvas canvas, double amount, double x, double y,
       bool centered, bool above) {
     final formatter = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
@@ -336,6 +371,7 @@ class SankeyDiagramPainter extends CustomPainter {
 
     textPainter.layout();
 
+    // Adjust text position based on centering and above/below placement.
     double xPos = x;
     if (centered) {
       xPos = x - textPainter.width / 2;
@@ -343,6 +379,7 @@ class SankeyDiagramPainter extends CustomPainter {
 
     double yPos = above ? y - textPainter.height : y - textPainter.height / 2;
 
+    // Draw a white background for the text.
     final bgRect = Rect.fromLTWH(
       xPos - 2,
       yPos - 2,
@@ -358,6 +395,7 @@ class SankeyDiagramPainter extends CustomPainter {
     textPainter.paint(canvas, Offset(xPos, yPos));
   }
 
+  // Always repaint the diagram to ensure updates are reflected.
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

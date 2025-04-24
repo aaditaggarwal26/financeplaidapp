@@ -1,10 +1,13 @@
+// This screen allows users to add new transactions with details like amount, category, and date.
 import 'package:finsight/models/transaction.dart';
 import 'package:finsight/widgets/amount_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+// Main widget for the add transaction screen, requiring a callback to handle the new transaction.
 class AddTransactionScreen extends StatefulWidget {
+  // Callback function to pass the created transaction back to the parent.
   final Function(Transaction) onAdd;
 
   const AddTransactionScreen({Key? key, required this.onAdd}) : super(key: key);
@@ -13,14 +16,20 @@ class AddTransactionScreen extends StatefulWidget {
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
 }
 
+// State class managing the form inputs and transaction creation logic.
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
+  // Form key for validating input fields.
   final _formKey = GlobalKey<FormState>();
+  // Selected date for the transaction, defaults to today.
   late DateTime _selectedDate;
+  // Controllers for description and amount input fields.
   late TextEditingController _descriptionController;
   late TextEditingController _amountController;
+  // Default category and transaction type for dropdowns.
   String _selectedCategory = 'Groceries';
   String _selectedTransactionType = 'Debit';
 
+  // Map of categories to their respective colors for consistent theming.
   final Map<String, Color> categoryColors = {
     'Groceries': const Color(0xFFE5BA73),
     'Utilities': const Color(0xFF4A90E2),
@@ -34,6 +43,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     'Miscellaneous': const Color(0xFF95A5A6),
   };
 
+  // Returns an icon for each category to enhance visual clarity.
   IconData _getCategoryIcon(String category) {
     switch (category) {
       case 'Groceries':
@@ -62,6 +72,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize the date and text controllers.
     _selectedDate = DateTime.now();
     _descriptionController = TextEditingController();
     _amountController = TextEditingController();
@@ -69,13 +80,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Main scaffold with a form for entering transaction details.
     return Scaffold(
       backgroundColor: Colors.grey[100],
       body: Form(
         key: _formKey,
         child: Column(
           children: [
-            // Header Section
+            // Header section with dynamic background color based on selected category.
             Container(
               padding: EdgeInsets.only(
                 top: MediaQuery.of(context).padding.top + 20,
@@ -92,7 +104,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
               child: Column(
                 children: [
-                  // Top Bar
+                  // Top bar with title and close button.
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -111,6 +123,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
+                  // Amount input field with validation.
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -137,6 +150,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // Dropdown for selecting the transaction category.
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -170,6 +184,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       }).toList(),
                       onChanged: (String? newValue) {
                         if (newValue != null) {
+                          // Update the selected category and refresh the UI.
                           setState(() => _selectedCategory = newValue);
                         }
                       },
@@ -178,11 +193,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ],
               ),
             ),
-            // Form Fields
+            // Form fields section, scrollable for smaller screens.
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
+                  // Card containing description, date, and transaction type inputs.
                   _buildCard([
                     _buildTextField(
                       controller: _descriptionController,
@@ -196,7 +212,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     _buildTransactionTypePicker(),
                   ]),
                   const SizedBox(height: 32),
-                  // Save Button
+                  // Save button to submit the transaction.
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: categoryColors[_selectedCategory],
@@ -224,6 +240,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  // Build a card widget to group form fields with a shadow effect.
   Widget _buildCard(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
@@ -244,6 +261,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  // Build a text input field with validation.
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -263,9 +281,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  // Build a date picker field with a formatted display.
   Widget _buildDatePicker(BuildContext context) {
     return InkWell(
       onTap: () async {
+        // Show a date picker dialog and update the selected date.
         final DateTime? picked = await showDatePicker(
           context: context,
           initialDate: _selectedDate,
@@ -310,6 +330,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  // Build a dropdown for selecting the transaction type (Debit, Credit, Cash).
   Widget _buildTransactionTypePicker() {
     return InputDecorator(
       decoration: InputDecoration(
@@ -332,6 +353,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           }).toList(),
           onChanged: (String? newValue) {
             if (newValue != null) {
+              // Update the selected transaction type and refresh the UI.
               setState(() => _selectedTransactionType = newValue);
             }
           },
@@ -340,14 +362,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  // Validate and save the transaction, passing it to the parent via the callback.
   void _saveTransaction() {
     if (_formKey.currentState?.validate() ?? false) {
       double amount = double.parse(_amountController.text);
-      // Make amount negative for credit card transactions
+      // Make amount negative for credit card transactions to indicate debt.
       if (_selectedTransactionType == 'Credit') {
         amount = -amount;
       }
 
+      // Create a new Transaction object with the form data.
       final transaction = Transaction(
         date: _selectedDate,
         description: _descriptionController.text,
@@ -358,6 +382,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         isPersonal: true,
         id: DateTime.now().millisecondsSinceEpoch.toString(),
       );
+      // Pass the transaction to the parent and close the screen.
       widget.onAdd(transaction);
       Navigator.pop(context);
     }
@@ -365,6 +390,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   void dispose() {
+    // Clean up controllers to prevent memory leaks.
     _descriptionController.dispose();
     _amountController.dispose();
     super.dispose();

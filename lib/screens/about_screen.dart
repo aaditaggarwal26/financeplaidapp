@@ -1,10 +1,13 @@
+// This screen provides an overview of the FinSight app, its features, and developers.
 import 'package:flutter/material.dart';
 
+// Main widget for the About screen, using a stateless widget since no state changes are needed.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // Main scaffold with a scrollable column for app details.
     return Scaffold(
       backgroundColor: const Color(0xFF2B3A55),
       body: SingleChildScrollView(
@@ -12,6 +15,7 @@ class AboutScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(height: 80),
+            // App logo displayed in a centered, rounded container.
             Center(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
@@ -29,6 +33,7 @@ class AboutScreen extends StatelessWidget {
                 ),
               ),
             ),
+            // App title and description section.
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -60,6 +65,7 @@ class AboutScreen extends StatelessWidget {
                 ],
               ),
             ),
+            // Main content section with feature lists and developer info.
             Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
@@ -70,6 +76,7 @@ class AboutScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Key Features section.
                     _buildSection(
                       'Key Features',
                       [
@@ -82,6 +89,7 @@ class AboutScreen extends StatelessWidget {
                       Icons.star_outline,
                     ),
                     const SizedBox(height: 24),
+                    // Why FinSight section.
                     _buildSection(
                       'Why FinSight?',
                       [
@@ -94,6 +102,7 @@ class AboutScreen extends StatelessWidget {
                       Icons.lightbulb_outline,
                     ),
                     const SizedBox(height: 24),
+                    // Developers section.
                     _buildSection(
                       'Developers',
                       [
@@ -113,10 +122,12 @@ class AboutScreen extends StatelessWidget {
     );
   }
 
+  // Build a section with a title, icon, and bulleted list of items.
   Widget _buildSection(String title, List<String> items, IconData icon) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Section title with an icon.
         Row(
           children: [
             Icon(
@@ -136,6 +147,7 @@ class AboutScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
+        // List of items in a styled container.
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(

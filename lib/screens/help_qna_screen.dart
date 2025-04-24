@@ -1,5 +1,7 @@
+// This screen provides a help section with FAQs and contact information, built with a tabbed interface.
 import 'package:flutter/material.dart';
 
+// Main widget for the Help & Q&A screen, using a stateful widget for dynamic behavior.
 class HelpQAScreen extends StatefulWidget {
   const HelpQAScreen({Key? key}) : super(key: key);
 
@@ -7,17 +9,23 @@ class HelpQAScreen extends StatefulWidget {
   State<HelpQAScreen> createState() => _HelpQAScreenState();
 }
 
+// State class for HelpQAScreen, handling tab navigation and search functionality.
 class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderStateMixin {
+  // Define color constants for consistent theming across the app.
   static const Color primaryColor = Color(0xFF2B3A55);
   static const Color accentColor = Color(0xFFE5BA73);
   static const Color backgroundColor = Color(0xFFF8F9FA);
 
-  // Initialize the controller in the declaration to avoid late initialization errors
+  // TabController for switching between FAQs and Contact tabs.
   TabController? _tabController;
+  // Controller for the search input field.
   final TextEditingController _searchController = TextEditingController();
+  // Flag to toggle search mode.
   bool _isSearching = false;
+  // Stores the current search query for filtering FAQs.
   String _searchQuery = "";
 
+  // List of FAQs stored as maps with question and answer pairs.
   final List<Map<String, String>> _questionsAndAnswers = [
     {
       'question': 'How do I link my bank account?',
@@ -46,6 +54,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
     },
   ];
 
+  // List of contact methods with titles, content, and icons.
   final List<Map<String, String>> _contactInfo = [
     {
       'title': 'Email Support',
@@ -64,14 +73,17 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
     },
   ];
 
+  // Tracks which FAQ questions are expanded to show their answers.
   final Map<String, bool> _expandedQuestions = {};
 
   @override
   void initState() {
     super.initState();
     
+    // Initialize the TabController with 2 tabs (FAQs and Contact).
     _tabController = TabController(length: 2, vsync: this);
     
+    // Set all FAQs to collapsed by default.
     for (var qna in _questionsAndAnswers) {
       _expandedQuestions[qna['question']!] = false;
     }
@@ -79,23 +91,26 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
 
   @override
   void dispose() {
+    // Clean up controllers to prevent memory leaks.
     _tabController?.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
+  // Getter to filter FAQs based on the search query.
   List<Map<String, String>> get _filteredQuestions {
     if (_searchQuery.isEmpty) {
       return _questionsAndAnswers;
     }
     
+    // Return FAQs where the question or answer contains the search query (case-insensitive).
     return _questionsAndAnswers.where((qna) {
       return qna['question']!.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           qna['answer']!.toLowerCase().contains(_searchQuery.toLowerCase());
     }).toList();
   }
 
-  // Method to toggle search mode
+  // Toggles search mode and clears the search query when exiting.
   void _toggleSearch() {
     setState(() {
       _isSearching = !_isSearching;
@@ -108,7 +123,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    // Ensure the TabController is initialized before using it
+    // Show a loading indicator if TabController isn't ready yet.
     if (_tabController == null) {
       return const Scaffold(
         body: Center(
@@ -117,11 +132,13 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
       );
     }
 
+    // Main scaffold with a tabbed interface for FAQs and Contact.
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         backgroundColor: backgroundColor,
         appBar: AppBar(
+          // Switch between a search field and title based on search mode.
           title: _isSearching
               ? TextField(
                   controller: _searchController,
@@ -155,6 +172,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
             ),
           ),
           actions: [
+            // Button to toggle search mode.
             IconButton(
               icon: Icon(
                 _isSearching ? Icons.close : Icons.search,
@@ -185,18 +203,19 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
           child: TabBarView(
             controller: _tabController,
             children: [
-              // FAQs Tab
+              // FAQs tab content.
               _buildFAQsTab(),
               
-              // Contact Tab
+              // Contact tab content.
               _buildContactTab(),
             ],
           ),
         ),
+        // Floating action button to initiate a live chat.
         floatingActionButton: FloatingActionButton(
           backgroundColor: accentColor,
           onPressed: () {
-            // Show a snackbar when FAB is pressed
+            // Show a snackbar to confirm live chat initiation.
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: const Text('Starting live chat...'),
@@ -219,14 +238,14 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
     );
   }
 
-  // FAQs Tab Content
+  // Builds the FAQs tab with a searchable list of questions and answers.
   Widget _buildFAQsTab() {
     return Column(
       children: [
-        // Header with illustration
+        // Show a header with an illustration when not searching.
         if (_searchQuery.isEmpty) _buildHeader(),
         
-        // FAQ list
+        // Expandable list of FAQs, filtered by search query.
         Expanded(
           child: _filteredQuestions.isEmpty
               ? _buildNoResultsFound()
@@ -237,6 +256,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
                     final qna = _filteredQuestions[index];
                     final isExpanded = _expandedQuestions[qna['question']] ?? false;
                     
+                    // Animated container for smooth expansion/collapse of FAQs.
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
                       margin: const EdgeInsets.only(bottom: 16),
@@ -260,7 +280,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
                               dividerColor: Colors.transparent,
                             ),
                             child: ExpansionTile(
-                              key: Key(qna['question'] ?? ''), // Add key for proper state management
+                              key: Key(qna['question'] ?? ''), // Ensure proper state management for each FAQ.
                               initiallyExpanded: false,
                               tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                               expandedCrossAxisAlignment: CrossAxisAlignment.start,
@@ -318,6 +338,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
                                       const SizedBox(height: 16),
                                       Row(
                                         children: [
+                                          // Buttons to mark FAQ as helpful or not.
                                           _buildReactionButton(Icons.thumb_up_outlined, "Helpful"),
                                           const SizedBox(width: 8),
                                           _buildReactionButton(Icons.thumb_down_outlined, "Not helpful"),
@@ -339,7 +360,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
     );
   }
 
-  // Contact Tab Content
+  // Builds the Contact tab with support options and a feedback form.
   Widget _buildContactTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -348,11 +369,12 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
         children: [
           const SizedBox(height: 16),
           
-          // Contact Info Cards
+          // Display contact methods as interactive cards.
           ...List.generate(_contactInfo.length, (index) {
             final info = _contactInfo[index];
             IconData icon;
             
+            // Map string icon names to Flutter Icons.
             switch (info['icon']) {
               case 'email':
                 icon = Icons.email_outlined;
@@ -415,7 +437,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
                   size: 16,
                 ),
                 onTap: () {
-                  // Show contact action feedback
+                  // Show a snackbar to simulate initiating contact.
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Contacting via ${info['title']}...Please wait until a representative is available'),
@@ -433,7 +455,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
           
           const SizedBox(height: 24),
           
-          // Section header
+          // Header for the feedback section.
           Row(
             children: [
               Icon(
@@ -455,7 +477,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
           
           const SizedBox(height: 16),
           
-          // Feedback Form with error handling
+          // Feedback form with validation and animation.
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -474,7 +496,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Added animation effect
+                  // Animate the name field for a smoother UI experience.
                   TweenAnimationBuilder(
                     tween: Tween<double>(begin: 0.8, end: 1.0),
                     duration: const Duration(milliseconds: 500),
@@ -553,7 +575,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
                   
                   const SizedBox(height: 24),
                   
-                  // Animated button
+                  // Animated submit button for visual feedback.
                   SizedBox(
                     width: double.infinity,
                     child: TweenAnimationBuilder(
@@ -575,10 +597,9 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
                           ),
                         ),
                         onPressed: () {
-                          // Form validation and submission
+                          // Validate and submit the feedback form.
                           final form = Form.of(context);
                           if (form != null && form.validate()) {
-                            // Show submit feedback confirmation
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: const Text('Thank you for your feedback!'),
@@ -620,7 +641,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
           
           const SizedBox(height: 30),
           
-          // FAQ quick links
+          // Quick help links for common issues.
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -660,6 +681,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
     );
   }
 
+  // Header for the FAQs tab, shown when not searching.
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
@@ -712,6 +734,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
     );
   }
 
+  // Widget shown when no FAQs match the search query.
   Widget _buildNoResultsFound() {
     return Center(
       child: Column(
@@ -744,6 +767,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
     );
   }
 
+  // Builds a reaction button for marking FAQs as helpful or not.
   Widget _buildReactionButton(IconData icon, String label) {
     return OutlinedButton.icon(
       icon: Icon(
@@ -766,7 +790,7 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
       onPressed: () {
-        // Show reaction feedback
+        // Show feedback for the user's reaction.
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('You marked this as $label'),
@@ -782,10 +806,11 @@ class _HelpQAScreenState extends State<HelpQAScreen> with SingleTickerProviderSt
     );
   }
   
+  // Builds a chip for quick help links that trigger a search in the FAQs tab.
   Widget _buildQuickHelpChip(String label) {
     return InkWell(
       onTap: () {
-        // Switch to FAQs tab and set search query
+        // Switch to FAQs tab and populate the search field with the chip's label.
         _tabController?.animateTo(0);
         setState(() {
           _isSearching = true;
