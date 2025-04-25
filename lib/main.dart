@@ -34,6 +34,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
+      debugShowCheckedModeBanner: false,
       title: 'Finsight',
       home: LoginScreen(), // First screen shown to the user, as soon as user opens the app. Prompts them to log-in
     );
