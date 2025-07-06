@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:finsight/models/account_balance.dart';
@@ -10,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
 class DataService {
@@ -23,16 +25,12 @@ class DataService {
   static DateTime? _lastBalanceFetch;
   static List<MonthlySpending>? _cachedMonthlySpending;
   static DateTime? _lastMonthlySpendingFetch;
-  static List<CheckingAccount>? _cachedCheckingAccounts;
-  static DateTime? _lastCheckingAccountsFetch;
-  static List<CreditCard>? _cachedCreditCards;
-  static DateTime? _lastCreditCardsFetch;
-  static List<Map<String, dynamic>>? _cachedCreditScoreHistory;
-  static DateTime? _lastCreditScoreFetch;
-  static List<Map<String, dynamic>>? _cachedSpendingInsights;
-  static DateTime? _lastSpendingInsightsFetch;
-  
+  static Map<String, List<Map<String, dynamic>>>? _cachedAccounts;
   static const Duration _cacheExpiry = Duration(minutes: 5);
+
+  // Receipt toggle settings
+  static const String _SHOW_SCANNED_RECEIPTS_KEY = 'show_scanned_receipts';
+  static bool? _cachedShowScannedReceipts;
 
   // Singleton pattern for better performance
   static final DataService _instance = DataService._internal();
@@ -54,6 +52,42 @@ class DataService {
     return DateTime.now().difference(lastFetch) < _cacheExpiry;
   }
 
+  // Receipt toggle management
+  Future<bool> getShowScannedReceipts() async {
+    if (_cachedShowScannedReceipts != null) {
+      return _cachedShowScannedReceipts!;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _cachedShowScannedReceipts =
+          prefs.getBool(_SHOW_SCANNED_RECEIPTS_KEY) ?? true;
+      return _cachedShowScannedReceipts!;
+    } catch (e) {
+      print('Error getting scanned receipts preference: $e');
+      return true; // Default to showing scanned receipts
+    }
+  }
+
+  Future<void> setShowScannedReceipts(bool show) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_SHOW_SCANNED_RECEIPTS_KEY, show);
+      _cachedShowScannedReceipts = show;
+
+      // Clear cache to refresh data with new filter
+      clearTransactionCache();
+    } catch (e) {
+      print('Error setting scanned receipts preference: $e');
+    }
+  }
+
+  // Helper method to check if transaction is from scanned receipt
+  bool _isScannedReceipt(Transaction transaction) {
+    if (transaction.merchantMetadata == null) return false;
+    return transaction.merchantMetadata!['receipt_scanned'] == true;
+  }
+
   Future<void> _initializeLocalFile() async {
     final file = await _localFile;
     final exists = await file.exists();
@@ -69,7 +103,7 @@ class DataService {
       final file = await _localFile;
 
       final row = [
-        DateFormat('yyyy-MM-dd').format(transaction.date),
+        DateFormat('yyyy-MM-dd HH:mm:ss').format(transaction.date),
         transaction.description,
         transaction.category,
         transaction.amount.toString(),
@@ -85,15 +119,16 @@ class DataService {
         transaction.confidence?.toString() ?? '',
         transaction.isRecurring.toString(),
         transaction.paymentMethod ?? '',
+        // FIX: Use json.encode for reliable serialization of metadata
+        transaction.merchantMetadata != null
+            ? json.encode(transaction.merchantMetadata)
+            : '',
       ].map((field) => '"${field.replaceAll('"', '""')}"').join(',');
 
       await file.writeAsString('$row\n', mode: FileMode.append);
-      
-      // Invalidate relevant caches
-      clearTransactionCache();
-      clearMonthlySpendingCache();
-      clearSpendingInsightsCache();
 
+      // Invalidate cache
+      clearTransactionCache();
     } catch (e) {
       print('Error appending transaction: $e');
       throw Exception('Failed to save transaction');
@@ -112,27 +147,38 @@ class DataService {
       }).toList();
 
       await file.writeAsString(updatedLines.join('\n') + '\n');
-      
-      // Invalidate relevant caches
-      clearTransactionCache();
-      clearMonthlySpendingCache();
-      clearSpendingInsightsCache();
 
+      // Invalidate cache
+      clearTransactionCache();
     } catch (e) {
       print('Error deleting transaction: $e');
       throw Exception('Failed to delete transaction');
     }
   }
 
-  // Enhanced caching for transactions
-  Future<List<Transaction>> getTransactions({BuildContext? context, bool forceRefresh = false}) async {
-    if (!forceRefresh && _isCacheValid(_lastTransactionFetch) && _cachedTransactions != null) {
-      print('Returning cached transactions (${_cachedTransactions!.length} items)');
-      return _cachedTransactions!;
+  // Enhanced caching for transactions with receipt filtering
+  Future<List<Transaction>> getTransactions({
+    BuildContext? context,
+    bool forceRefresh = false,
+    bool? includeScannedReceipts,
+  }) async {
+    // Get filter preference
+    final showScannedReceipts =
+        includeScannedReceipts ?? await getShowScannedReceipts();
+
+    // Return cached data if valid and not forcing refresh
+    if (!forceRefresh &&
+        _isCacheValid(_lastTransactionFetch) &&
+        _cachedTransactions != null) {
+      print(
+          'Returning cached transactions (${_cachedTransactions!.length} items)');
+      return _filterTransactionsByReceipts(
+          _cachedTransactions!, showScannedReceipts);
     }
 
     List<Transaction> allTransactions = [];
 
+    // First, try to get Plaid transactions if connected
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
       if (hasPlaidConnection && context != null) {
@@ -143,12 +189,14 @@ class DataService {
           endDate: DateTime.now(),
         );
         allTransactions.addAll(plaidTransactions);
-        print('Loaded ${plaidTransactions.length} enriched Plaid transactions');
+        print(
+            'Loaded ${plaidTransactions.length} enriched Plaid transactions');
       }
     } catch (e) {
       print('Could not load Plaid transactions: $e');
     }
 
+    // Then get local/manual transactions
     try {
       await _initializeLocalFile();
       final file = await _localFile;
@@ -165,6 +213,18 @@ class DataService {
           try {
             var row = csvTable[i];
             if (row.length >= 6) {
+              // Parse metadata if present
+              Map<String, dynamic>? metadata;
+              if (row.length >= 17 && row[16].toString().isNotEmpty) {
+                try {
+                  // FIX: Use json.decode for reliable parsing
+                  metadata =
+                      json.decode(row[16].toString()) as Map<String, dynamic>;
+                } catch (e) {
+                  print('Error parsing metadata for row $i: $e');
+                }
+              }
+
               allTransactions.add(Transaction(
                 date: DateTime.parse(row[0].toString()),
                 description: row[1].toString(),
@@ -178,8 +238,10 @@ class DataService {
                     : false,
                 id: row.length >= 9 ? row[8].toString() : null,
                 merchantName: row.length >= 10 ? row[9].toString() : null,
-                merchantLogoUrl: row.length >= 11 ? row[10].toString() : null,
-                merchantWebsite: row.length >= 12 ? row[11].toString() : null,
+                merchantLogoUrl:
+                    row.length >= 11 ? row[10].toString() : null,
+                merchantWebsite:
+                    row.length >= 12 ? row[11].toString() : null,
                 location: row.length >= 13 ? row[12].toString() : null,
                 confidence: row.length >= 14 && row[13].toString().isNotEmpty
                     ? double.tryParse(row[13].toString())
@@ -188,6 +250,7 @@ class DataService {
                     ? row[14].toString().toLowerCase() == 'true'
                     : false,
                 paymentMethod: row.length >= 16 ? row[15].toString() : null,
+                merchantMetadata: metadata,
               ));
             }
           } catch (e) {
@@ -200,28 +263,63 @@ class DataService {
       print('Error loading local transactions: $e');
     }
 
+    // Update cache
     _cachedTransactions = allTransactions;
     _lastTransactionFetch = DateTime.now();
 
-    return allTransactions;
+    return _filterTransactionsByReceipts(
+        allTransactions, showScannedReceipts);
+  }
+
+  List<Transaction> _filterTransactionsByReceipts(
+      List<Transaction> transactions, bool showScannedReceipts) {
+    if (showScannedReceipts) {
+      return transactions; // Show all transactions
+    } else {
+      return transactions.where((t) => !_isScannedReceipt(t)).toList();
+    }
+  }
+
+  // Get transaction count by type
+  Future<Map<String, int>> getTransactionCounts({BuildContext? context}) async {
+    final allTransactions =
+        await getTransactions(context: context, includeScannedReceipts: true);
+    final scannedCount = allTransactions.where(_isScannedReceipt).length;
+    final plaidCount =
+        allTransactions.where((t) => !t.isPersonal && !_isScannedReceipt(t)).length;
+    final manualCount =
+        allTransactions.where((t) => t.isPersonal && !_isScannedReceipt(t)).length;
+
+    return {
+      'total': allTransactions.length,
+      'scanned': scannedCount,
+      'plaid': plaidCount,
+      'manual': manualCount,
+    };
   }
 
   // Cached account balances
-  Future<List<AccountBalance>> getAccountBalances({BuildContext? context, bool forceRefresh = false}) async {
-    if (!forceRefresh && _isCacheValid(_lastBalanceFetch) && _cachedBalances != null) {
+  Future<List<AccountBalance>> getAccountBalances({
+    BuildContext? context,
+    bool forceRefresh = false,
+    bool? includeScannedReceipts,
+  }) async {
+    if (!forceRefresh &&
+        _isCacheValid(_lastBalanceFetch) &&
+        _cachedBalances != null) {
       print('Returning cached account balances');
       return _cachedBalances!;
     }
 
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
-      
+
       List<AccountBalance> balances;
       if (hasPlaidConnection) {
         print('Fetching fresh Plaid account balances...');
         final plaidBalances = await _plaidService.getAccountBalances();
         final now = DateTime.now();
-        
+
         balances = [
           AccountBalance(
             date: now,
@@ -236,9 +334,10 @@ class DataService {
         balances = await _getStaticAccountBalances();
       }
 
+      // Update cache
       _cachedBalances = balances;
       _lastBalanceFetch = DateTime.now();
-      
+
       return balances;
     } catch (e) {
       print('Error loading account balances: $e');
@@ -246,309 +345,64 @@ class DataService {
     }
   }
 
-  // Cached monthly spending
-  Future<List<MonthlySpending>> getMonthlySpending({BuildContext? context, bool forceRefresh = false}) async {
-    if (!forceRefresh && _isCacheValid(_lastMonthlySpendingFetch) && _cachedMonthlySpending != null) {
+  // Cached monthly spending with receipt filtering
+  Future<List<MonthlySpending>> getMonthlySpending({
+    BuildContext? context,
+    bool forceRefresh = false,
+    bool? includeScannedReceipts,
+  }) async {
+    final showScannedReceipts =
+        includeScannedReceipts ?? await getShowScannedReceipts();
+
+    if (!forceRefresh &&
+        _isCacheValid(_lastMonthlySpendingFetch) &&
+        _cachedMonthlySpending != null) {
       print('Returning cached monthly spending');
       return _cachedMonthlySpending!;
     }
 
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
-      
+
       List<MonthlySpending> spending;
       if (hasPlaidConnection && context != null) {
         print('Generating fresh monthly spending from transactions...');
-        spending = await _getMonthlySpendingFromTransactions(context: context);
+        spending = await _getMonthlySpendingFromTransactions(
+          context: context,
+          includeScannedReceipts: showScannedReceipts,
+        );
       } else {
         spending = await _getStaticMonthlySpending();
       }
 
+      // Update cache
       _cachedMonthlySpending = spending;
       _lastMonthlySpendingFetch = DateTime.now();
-      
+
       return spending;
     } catch (e) {
       print('Error loading monthly spending: $e');
       return await _getStaticMonthlySpending();
     }
   }
-  
-  // Get checking accounts - uses Plaid when available
-  Future<List<CheckingAccount>> getCheckingAccounts({BuildContext? context, bool forceRefresh = false}) async {
-    if (!forceRefresh && _isCacheValid(_lastCheckingAccountsFetch) && _cachedCheckingAccounts != null) {
-      print('Returning cached checking accounts');
-      return _cachedCheckingAccounts!;
-    }
-    
-    try {
-      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
-      List<CheckingAccount> accounts;
-      
-      if (hasPlaidConnection && context != null) {
-         print('Fetching fresh Plaid checking accounts...');
-        final plaidAccounts = await _plaidService.getAccounts(context);
-        accounts = plaidAccounts
-            .where((account) => 
-                account['type'] == 'depository' ||
-                (account['subtype'] != null && 
-                 ['checking', 'savings'].contains(account['subtype'].toString().toLowerCase())))
-            .map((account) => CheckingAccount(
-                  name: account['name'] ?? 'Account',
-                  accountNumber: '****${account['mask'] ?? '0000'}',
-                  balance: (account['balance']['current'] ?? 0).toDouble(),
-                  type: account['subtype'] ?? 'checking',
-                  bankName: account['institution'] ?? 'Bank',
-                ))
-            .toList();
-      } else {
-        accounts = await _getStaticCheckingAccounts();
-      }
-      
-      _cachedCheckingAccounts = accounts;
-      _lastCheckingAccountsFetch = DateTime.now();
-      return accounts;
-
-    } catch (e) {
-      print('Error loading checking accounts: $e');
-      return await _getStaticCheckingAccounts();
-    }
-  }
-
-  // Get credit cards - uses Plaid when available
-  Future<List<CreditCard>> getCreditCards({BuildContext? context, bool forceRefresh = false}) async {
-    if (!forceRefresh && _isCacheValid(_lastCreditCardsFetch) && _cachedCreditCards != null) {
-      print('Returning cached credit cards');
-      return _cachedCreditCards!;
-    }
-    
-    try {
-      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
-      List<CreditCard> cards;
-
-      if (hasPlaidConnection && context != null) {
-        print('Fetching fresh Plaid credit cards...');
-        final accounts = await _plaidService.getAccounts(context);
-        cards = accounts
-            .where((account) => 
-                account['type'] == 'credit' ||
-                (account['subtype'] != null && 
-                 ['credit card', 'credit'].contains(account['subtype'].toString().toLowerCase())))
-            .map((account) => CreditCard(
-                  name: account['name'] ?? 'Credit Card',
-                  lastFour: account['mask'] ?? '0000',
-                  balance: (account['balance']['current'] ?? 0).toDouble().abs(),
-                  creditLimit: (account['balance']['limit'] ?? 1000).toDouble(),
-                  apr: 19.99, // Default APR since Plaid doesn't provide this
-                  bankName: account['institution'] ?? 'Bank',
-                ))
-            .toList();
-      } else {
-        cards = await _getStaticCreditCards();
-      }
-      
-      _cachedCreditCards = cards;
-      _lastCreditCardsFetch = DateTime.now();
-      return cards;
-
-    } catch (e) {
-      print('Error loading credit cards: $e');
-      return await _getStaticCreditCards();
-    }
-  }
-  
-  Future<double> getNetCash({BuildContext? context}) async {
-    try {
-      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
-      
-      if (hasPlaidConnection) {
-        final balancesList = await getAccountBalances(context: context);
-        if (balancesList.isEmpty) return 0;
-        final balances = balancesList.first;
-        return balances.checking + balances.savings - balances.creditCardBalance;
-      } else {
-        final checkingAccounts = await getCheckingAccounts(context: context);
-        final creditCards = await getCreditCards(context: context);
-
-        double totalChecking =
-            checkingAccounts.fold(0, (sum, account) => sum + account.balance);
-        double totalCredit = creditCards.fold(0, (sum, card) => sum + card.balance);
-
-        return totalChecking - totalCredit;
-      }
-    } catch (e) {
-      print('Error calculating net cash: $e');
-      return 0;
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getCreditScoreHistory({BuildContext? context, bool forceRefresh = false}) async {
-    if (!forceRefresh && _isCacheValid(_lastCreditScoreFetch) && _cachedCreditScoreHistory != null) {
-      print('Returning cached credit score history');
-      return _cachedCreditScoreHistory!;
-    }
-    
-    try {
-      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
-      List<Map<String, dynamic>> history;
-
-      if (hasPlaidConnection) {
-        print('Generating estimated credit score history...');
-        final balancesMap = await _plaidService.getAccountBalances();
-        final transactions = await getTransactions(context: context);
-        
-        int estimatedScore = await _calculateEstimatedCreditScore(balancesMap, transactions);
-        
-        final baseHistory = await _getStaticCreditScoreHistory();
-        
-        if (baseHistory.isNotEmpty) {
-          final latestEntry = baseHistory.last;
-          latestEntry['score'] = estimatedScore;
-          
-          for (int i = baseHistory.length - 2; i >= baseHistory.length - 4 && i >= 0; i--) {
-            final variance = (estimatedScore * 0.05).round(); 
-            baseHistory[i]['score'] = estimatedScore + 
-                ((baseHistory.length - 1 - i) * variance ~/ 3) * (i % 2 == 0 ? -1 : 1);
-          }
-        }
-        history = baseHistory;
-      } else {
-        history = await _getStaticCreditScoreHistory();
-      }
-      
-      _cachedCreditScoreHistory = history;
-      _lastCreditScoreFetch = DateTime.now();
-      return history;
-
-    } catch (e) {
-      print('Error loading credit score history: $e');
-      return await _getStaticCreditScoreHistory();
-    }
-  }
-  
-  Future<List<Map<String, dynamic>>> getSpendingInsights({BuildContext? context, bool forceRefresh = false}) async {
-    if (!forceRefresh && _isCacheValid(_lastSpendingInsightsFetch) && _cachedSpendingInsights != null) {
-      print('Returning cached spending insights');
-      return _cachedSpendingInsights!;
-    }
-    
-    try {
-      final transactions = await getTransactions(context: context);
-      final insights = <Map<String, dynamic>>[];
-      
-      if (transactions.isEmpty) return insights;
-
-      final now = DateTime.now();
-      final currentMonth = DateTime(now.year, now.month);
-      final lastMonth = DateTime(now.year, now.month - 1);
-
-      final currentMonthTransactions = transactions.where((t) => t.date.year == currentMonth.year && t.date.month == currentMonth.month && t.transactionType != 'Credit').toList();
-      final lastMonthTransactions = transactions.where((t) => t.date.year == lastMonth.year && t.date.month == lastMonth.month && t.transactionType != 'Credit').toList();
-
-      Map<String, double> currentSpending = {};
-      Map<String, double> lastSpending = {};
-
-      for (final transaction in currentMonthTransactions) {
-        currentSpending[transaction.category] = (currentSpending[transaction.category] ?? 0) + transaction.amount;
-      }
-
-      for (final transaction in lastMonthTransactions) {
-        lastSpending[transaction.category] = (lastSpending[transaction.category] ?? 0) + transaction.amount;
-      }
-
-      currentSpending.forEach((category, currentAmount) {
-        final lastAmount = lastSpending[category] ?? 0;
-        if (lastAmount > 0) {
-          final change = ((currentAmount - lastAmount) / lastAmount) * 100;
-          
-          if (change > 20) {
-            insights.add({'type': 'warning', 'title': 'High $category Spending', 'description': 'You spent ${change.toStringAsFixed(1)}% more on $category this month.', 'category': category, 'change': change});
-          } else if (change < -20) {
-            insights.add({'type': 'positive', 'title': 'Reduced $category Spending', 'description': 'You spent ${change.abs().toStringAsFixed(1)}% less on $category this month.', 'category': category, 'change': change});
-          }
-        }
-      });
-
-      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
-      if (hasPlaidConnection) {
-        final subscriptionTransactions = transactions.where((t) => t.isRecurring).toList(); // Simplified from isLikelySubscription
-        if (subscriptionTransactions.isNotEmpty) {
-          final monthlySubscriptionCost = subscriptionTransactions.where((t) => t.date.isAfter(now.subtract(const Duration(days: 30)))).fold(0.0, (sum, t) => sum + t.amount);
-          if (monthlySubscriptionCost > 100) {
-            insights.add({'type': 'info', 'title': 'Subscription Review Needed', 'description': 'You\'re spending \$${monthlySubscriptionCost.toStringAsFixed(0)}/month on subscriptions. Consider reviewing them.', 'category': 'Subscriptions', 'amount': monthlySubscriptionCost});
-          }
-        }
-
-        final merchantSpending = <String, double>{};
-        for (final transaction in currentMonthTransactions) {
-          final merchant = transaction.merchantName ?? transaction.description;
-          merchantSpending[merchant] = (merchantSpending[merchant] ?? 0) + transaction.amount;
-        }
-        
-        if (merchantSpending.isNotEmpty) {
-          final topMerchant = merchantSpending.entries.reduce((a, b) => a.value > b.value ? a : b);
-          if (topMerchant.value > 500) {
-            insights.add({'type': 'info', 'title': 'High Merchant Spending', 'description': 'You spent \$${topMerchant.value.toStringAsFixed(0)} at ${topMerchant.key} this month.', 'category': 'Merchant Analysis', 'merchant': topMerchant.key, 'amount': topMerchant.value});
-          }
-        }
-      }
-
-      _cachedSpendingInsights = insights;
-      _lastSpendingInsightsFetch = DateTime.now();
-      return insights;
-    } catch (e) {
-      print('Error generating spending insights: $e');
-      return [];
-    }
-  }
-  
-  // Helper method to check if we should use Plaid data
-  Future<bool> shouldUsePlaidData() async {
-    try {
-      return await _plaidService.hasPlaidConnection();
-    } catch (e) {
-      return false;
-    }
-  }
-
 
   // Cache clearing methods
   static void clearCache() {
     _cachedTransactions = null;
     _cachedBalances = null;
     _cachedMonthlySpending = null;
-    _cachedCheckingAccounts = null;
-    _cachedCreditCards = null;
-    _cachedCreditScoreHistory = null;
-    _cachedSpendingInsights = null;
-    
+    _cachedAccounts = null;
     _lastTransactionFetch = null;
     _lastBalanceFetch = null;
     _lastMonthlySpendingFetch = null;
-    _lastCheckingAccountsFetch = null;
-    _lastCreditCardsFetch = null;
-    _lastCreditScoreFetch = null;
-    _lastSpendingInsightsFetch = null;
-    
-    print('All caches cleared.');
   }
 
   static void clearTransactionCache() {
     _cachedTransactions = null;
     _lastTransactionFetch = null;
-  }
-
-  static void clearMonthlySpendingCache() {
     _cachedMonthlySpending = null;
     _lastMonthlySpendingFetch = null;
   }
-  
-  static void clearSpendingInsightsCache() {
-    _cachedSpendingInsights = null;
-    _lastSpendingInsightsFetch = null;
-  }
-
-  // --- Private Helper Methods ---
 
   Future<List<AccountBalance>> _getStaticAccountBalances() async {
     try {
@@ -577,11 +431,12 @@ class DataService {
               ));
             }
           } catch (e) {
-            print('Error parsing account balance row $i: $e');
+            print('Error parsing row $i: $e');
             continue;
           }
         }
       }
+
       return balances;
     } catch (e) {
       print('Error loading static account balances: $e');
@@ -589,17 +444,24 @@ class DataService {
     }
   }
 
-  Future<List<MonthlySpending>> _getMonthlySpendingFromTransactions({BuildContext? context}) async {
+  Future<List<MonthlySpending>> _getMonthlySpendingFromTransactions({
+    BuildContext? context,
+    bool includeScannedReceipts = true,
+  }) async {
     try {
-      final transactions = await getTransactions(context: context);
-      
+      final transactions = await getTransactions(
+        context: context,
+        includeScannedReceipts: includeScannedReceipts,
+      );
+
       if (transactions.isEmpty) {
         print('No transactions available for monthly spending calculation');
         return await _getStaticMonthlySpending();
       }
-      
+
+      // Group transactions by month
       final Map<String, List<Transaction>> transactionsByMonth = {};
-      
+
       for (final transaction in transactions) {
         final monthKey = DateFormat('yyyy-MM').format(transaction.date);
         if (!transactionsByMonth.containsKey(monthKey)) {
@@ -608,39 +470,90 @@ class DataService {
         transactionsByMonth[monthKey]!.add(transaction);
       }
 
+      // Convert to MonthlySpending objects
       final List<MonthlySpending> result = [];
-      
+
       transactionsByMonth.forEach((key, txList) {
         final date = DateFormat('yyyy-MM').parse(key);
-        
-        double groceries = 0, utilities = 0, rent = 0, transportation = 0, entertainment = 0, diningOut = 0, shopping = 0, healthcare = 0, insurance = 0, miscellaneous = 0, totalIncome = 0;
+
+        // Calculate spending by category
+        double groceries = 0;
+        double utilities = 0;
+        double rent = 0;
+        double transportation = 0;
+        double entertainment = 0;
+        double diningOut = 0;
+        double shopping = 0;
+        double healthcare = 0;
+        double insurance = 0;
+        double miscellaneous = 0;
+        double totalIncome = 0;
 
         for (final tx in txList) {
           if (tx.transactionType.toLowerCase() == 'credit') {
             totalIncome += tx.amount;
           } else {
+            // Categorize spending - including Subscriptions category
             switch (tx.category) {
-              case 'Groceries': groceries += tx.amount; break;
-              case 'Utilities': utilities += tx.amount; break;
-              case 'Rent': rent += tx.amount; break;
-              case 'Transportation': transportation += tx.amount; break;
-              case 'Entertainment': entertainment += tx.amount; break;
-              case 'Dining Out': diningOut += tx.amount; break;
-              case 'Shopping': shopping += tx.amount; break;
-              case 'Healthcare': healthcare += tx.amount; break;
-              case 'Insurance': insurance += tx.amount; break;
-              case 'Subscriptions': miscellaneous += tx.amount; break;
-              default: miscellaneous += tx.amount; break;
+              case 'Groceries':
+                groceries += tx.amount;
+                break;
+              case 'Utilities':
+                utilities += tx.amount;
+                break;
+              case 'Rent':
+                rent += tx.amount;
+                break;
+              case 'Transportation':
+                transportation += tx.amount;
+                break;
+              case 'Entertainment':
+                entertainment += tx.amount;
+                break;
+              case 'Dining Out':
+                diningOut += tx.amount;
+                break;
+              case 'Shopping':
+                shopping += tx.amount;
+                break;
+              case 'Healthcare':
+                healthcare += tx.amount;
+                break;
+              case 'Insurance':
+                insurance += tx.amount;
+                break;
+              case 'Subscriptions':
+                // Add subscriptions to miscellaneous since MonthlySpending model doesn't have it
+                miscellaneous += tx.amount;
+                break;
+              default:
+                miscellaneous += tx.amount;
+                break;
             }
           }
         }
 
-        result.add(MonthlySpending(date: date, groceries: groceries, utilities: utilities, rent: rent, transportation: transportation, entertainment: entertainment, diningOut: diningOut, shopping: shopping, healthcare: healthcare, insurance: insurance, miscellaneous: miscellaneous, earnings: totalIncome > 0 ? totalIncome : null));
+        result.add(MonthlySpending(
+          date: date,
+          groceries: groceries,
+          utilities: utilities,
+          rent: rent,
+          transportation: transportation,
+          entertainment: entertainment,
+          diningOut: diningOut,
+          shopping: shopping,
+          healthcare: healthcare,
+          insurance: insurance,
+          miscellaneous: miscellaneous,
+          earnings: totalIncome > 0 ? totalIncome : null,
+        ));
       });
 
+      // Sort chronologically
       result.sort((a, b) => a.date.compareTo(b.date));
-      
-      print('Generated ${result.length} months of spending data from ${transactions.length} enriched transactions');
+
+      print(
+          'Generated ${result.length} months of spending data from ${transactions.length} transactions');
       return result;
     } catch (e) {
       print('Error processing transactions to monthly spending: $e');
@@ -661,7 +574,11 @@ class DataService {
       );
 
       List<MonthlySpending> monthlySpending = [];
-      if (csvTable.isEmpty) return [];
+
+      if (csvTable.isEmpty) {
+        print('Error: CSV table is empty');
+        return [];
+      }
 
       for (var i = 1; i < csvTable.length; i++) {
         try {
@@ -683,14 +600,57 @@ class DataService {
             ));
           }
         } catch (e) {
-          print('Error parsing monthly spending row $i: $e');
+          print('Error parsing row $i: $e');
           continue;
         }
       }
+
       return monthlySpending;
     } catch (e) {
       print('Error loading static monthly spending: $e');
       return [];
+    }
+  }
+
+  double _parseDouble(String value) {
+    try {
+      return double.parse(value);
+    } catch (e) {
+      print('Error parsing double value "$value": $e');
+      return 0.0;
+    }
+  }
+
+  // ... rest of the existing methods remain the same with receipt filtering support
+  Future<List<CheckingAccount>> getCheckingAccounts(
+      {BuildContext? context}) async {
+    try {
+      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
+
+      if (hasPlaidConnection && context != null) {
+        final accounts = await _plaidService.getAccounts(context);
+        final checkingAccounts = accounts
+            .where((account) =>
+                account['type'] == 'depository' ||
+                (account['subtype'] != null &&
+                    ['checking', 'savings'].contains(
+                        account['subtype'].toString().toLowerCase())))
+            .map((account) => CheckingAccount(
+                  name: account['name'] ?? 'Account',
+                  accountNumber: '****${account['mask'] ?? '0000'}',
+                  balance: (account['balance']['current'] ?? 0).toDouble(),
+                  type: account['subtype'] ?? 'checking',
+                  bankName: account['institution'] ?? 'Bank',
+                ))
+            .toList();
+
+        return checkingAccounts;
+      } else {
+        return await _getStaticCheckingAccounts();
+      }
+    } catch (e) {
+      print('Error loading checking accounts: $e');
+      return await _getStaticCheckingAccounts();
     }
   }
 
@@ -717,10 +677,44 @@ class DataService {
           ));
         }
       }
+
       return accounts;
     } catch (e) {
       print('Error loading static checking accounts: $e');
       return [];
+    }
+  }
+
+  Future<List<CreditCard>> getCreditCards({BuildContext? context}) async {
+    try {
+      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
+
+      if (hasPlaidConnection && context != null) {
+        final accounts = await _plaidService.getAccounts(context);
+        final creditCards = accounts
+            .where((account) =>
+                account['type'] == 'credit' ||
+                (account['subtype'] != null &&
+                    ['credit card', 'credit']
+                        .contains(account['subtype'].toString().toLowerCase())))
+            .map((account) => CreditCard(
+                  name: account['name'] ?? 'Credit Card',
+                  lastFour: account['mask'] ?? '0000',
+                  balance:
+                      (account['balance']['current'] ?? 0).toDouble().abs(),
+                  creditLimit: (account['balance']['limit'] ?? 1000).toDouble(),
+                  apr: 19.99, // Default APR since Plaid doesn't provide this
+                  bankName: account['institution'] ?? 'Bank',
+                ))
+            .toList();
+
+        return creditCards;
+      } else {
+        return await _getStaticCreditCards();
+      }
+    } catch (e) {
+      print('Error loading credit cards: $e');
+      return await _getStaticCreditCards();
     }
   }
 
@@ -748,6 +742,7 @@ class DataService {
           ));
         }
       }
+
       return cards;
     } catch (e) {
       print('Error loading static credit cards: $e');
@@ -755,83 +750,136 @@ class DataService {
     }
   }
 
-  Future<int> _calculateEstimatedCreditScore(Map<String, double> balances, List<Transaction> transactions) async {
-    int baseScore = 650;
-    
-    double creditBalance = balances['creditCardBalance'] ?? 0;
-    if (creditBalance > 0) {
-      double estimatedCreditLimit = creditBalance * 4;
-      double utilization = creditBalance / estimatedCreditLimit;
-      
-      if (utilization < 0.1) baseScore += 50;
-      else if (utilization < 0.3) baseScore += 20;
-      else if (utilization > 0.7) baseScore -= 30;
+  Future<double> getNetCash({BuildContext? context}) async {
+    try {
+      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
+
+      if (hasPlaidConnection) {
+        final balances = await _plaidService.getAccountBalances();
+        return (balances['checking'] ?? 0) +
+            (balances['savings'] ?? 0) -
+            (balances['creditCardBalance'] ?? 0);
+      } else {
+        final checkingAccounts = await _getStaticCheckingAccounts();
+        final creditCards = await _getStaticCreditCards();
+
+        double totalChecking =
+            checkingAccounts.fold(0, (sum, account) => sum + account.balance);
+        double totalCredit =
+            creditCards.fold(0, (sum, card) => sum + card.balance);
+
+        return totalChecking - totalCredit;
+      }
+    } catch (e) {
+      print('Error calculating net cash: $e');
+      return 0;
     }
-    
-    double totalAssets = (balances['checking'] ?? 0) + (balances['savings'] ?? 0);
-    if (totalAssets > 10000) baseScore += 30;
-    else if (totalAssets > 5000) baseScore += 15;
-    else if (totalAssets < 1000) baseScore -= 15;
-    
-    if (transactions.length > 50) {
-      baseScore += 10;
-      final incomeTransactions = transactions.where((t) => t.transactionType == 'Credit').toList();
-      if (incomeTransactions.length > 4) baseScore += 15;
-      
-      final subscriptions = transactions.where((t) => t.isRecurring).toList(); // Simplified from isLikelySubscription
-      final avgMonthlySubscriptions = subscriptions.length / 12;
-      if (avgMonthlySubscriptions < 10) baseScore += 10;
-      else if (avgMonthlySubscriptions > 20) baseScore -= 10;
-    }
-    
-    return baseScore.clamp(300, 850);
   }
 
-  Future<List<Map<String, dynamic>>> _getStaticCreditScoreHistory() async {
+  Future<bool> shouldUsePlaidData() async {
     try {
-      final String data =
-          await rootBundle.loadString('assets/data/credit_score.csv');
-      
-      List<List<dynamic>> csvTable = const CsvToListConverter().convert(
-        data,
-        eol: '\n',
-        fieldDelimiter: ',',
-      );
+      return await _plaidService.hasPlaidConnection();
+    } catch (e) {
+      return false;
+    }
+  }
 
-      List<Map<String, dynamic>> scores = [];
-      if (csvTable.length > 1) {
-        for (var i = 1; i < csvTable.length; i++) {
-          try {
-            var row = csvTable[i];
-            if (row.length >= 6) {
-              scores.add({
-                'date': DateTime.parse(row[0].toString()),
-                'score': int.parse(row[1].toString()),
-                'on_time_payments': int.parse(row[2].toString()),
-                'credit_utilization': int.parse(row[3].toString()),
-                'credit_age_years': double.parse(row[4].toString()),
-                'new_credit_inquiries': int.parse(row[5].toString()),
-              });
-            }
-          } catch (e) {
-            print('Error parsing credit score row $i: $e');
-            continue;
+  // Enhanced spending insights with receipt data awareness
+  Future<List<Map<String, dynamic>>> getSpendingInsights({
+    BuildContext? context,
+    bool? includeScannedReceipts,
+  }) async {
+    try {
+      final showScannedReceipts =
+          includeScannedReceipts ?? await getShowScannedReceipts();
+      final transactions = await getTransactions(
+        context: context,
+        includeScannedReceipts: showScannedReceipts,
+      );
+      final insights = <Map<String, dynamic>>[];
+
+      if (transactions.isEmpty) return insights;
+
+      // Analyze current month vs previous month
+      final now = DateTime.now();
+      final currentMonth = DateTime(now.year, now.month);
+      final lastMonth = DateTime(now.year, now.month - 1);
+
+      final currentMonthTransactions = transactions.where((t) {
+        return t.date.year == currentMonth.year &&
+            t.date.month == currentMonth.month &&
+            t.transactionType == 'Debit';
+      }).toList();
+
+      final lastMonthTransactions = transactions.where((t) {
+        return t.date.year == lastMonth.year &&
+            t.date.month == lastMonth.month &&
+            t.transactionType == 'Debit';
+      }).toList();
+
+      // Add receipt-specific insights
+      final scannedReceipts =
+          currentMonthTransactions.where(_isScannedReceipt).toList();
+      if (scannedReceipts.isNotEmpty) {
+        final receiptTotal =
+            scannedReceipts.fold(0.0, (sum, t) => sum + t.amount);
+        insights.add({
+          'type': 'info',
+          'title': 'Receipt Scanner Usage',
+          'description':
+              'You\'ve scanned ${scannedReceipts.length} receipts totaling \$${receiptTotal.toStringAsFixed(0)} this month.',
+          'category': 'Receipt Scanning',
+          'count': scannedReceipts.length,
+          'amount': receiptTotal,
+        });
+      }
+
+      // Calculate spending by category for both months
+      Map<String, double> currentSpending = {};
+      Map<String, double> lastSpending = {};
+
+      for (final transaction in currentMonthTransactions) {
+        currentSpending[transaction.category] =
+            (currentSpending[transaction.category] ?? 0) + transaction.amount;
+      }
+
+      for (final transaction in lastMonthTransactions) {
+        lastSpending[transaction.category] =
+            (lastSpending[transaction.category] ?? 0) + transaction.amount;
+      }
+
+      // Generate insights based on spending changes
+      currentSpending.forEach((category, currentAmount) {
+        final lastAmount = lastSpending[category] ?? 0;
+        if (lastAmount > 0) {
+          final change = ((currentAmount - lastAmount) / lastAmount) * 100;
+
+          if (change > 20) {
+            insights.add({
+              'type': 'warning',
+              'title': 'High $category Spending',
+              'description':
+                  'You spent ${change.toStringAsFixed(1)}% more on $category this month.',
+              'category': category,
+              'change': change,
+            });
+          } else if (change < -20) {
+            insights.add({
+              'type': 'positive',
+              'title': 'Reduced $category Spending',
+              'description':
+                  'You spent ${change.abs().toStringAsFixed(1)}% less on $category this month.',
+              'category': category,
+              'change': change,
+            });
           }
         }
-      }
-      return scores;
-    } catch (e) {
-      print('Error loading credit score history: $e');
-      return [];
-    }
-  }
+      });
 
-  double _parseDouble(String value) {
-    try {
-      return double.parse(value);
+      return insights;
     } catch (e) {
-      // print('Error parsing double value "$value": $e');
-      return 0.0;
+      print('Error generating spending insights: $e');
+      return [];
     }
   }
 }

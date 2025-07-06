@@ -1,6 +1,7 @@
 import 'package:finsight/exports/transaction_exports.dart';
 import 'package:finsight/screens/add_transactions_screen.dart';
 import 'package:finsight/screens/transaction_detail_screen.dart';
+import 'package:finsight/screens/receipt_scanner_screen.dart';
 import 'package:finsight/services/plaid_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -19,6 +20,9 @@ class _TransactionScreenState extends State<TransactionScreen> {
   List<Transaction> filteredTransactions = [];
   bool isLoading = true;
   bool _hasPlaidConnection = false;
+  bool _showScannedReceipts = true;
+  Map<String, int> _transactionCounts = {};
+
   final TextEditingController _searchController = TextEditingController();
   String selectedMonth = DateFormat('MMMM yyyy').format(DateTime.now());
 
@@ -39,19 +43,26 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
   Future<void> _initializeData() async {
     if (!mounted) return;
-    
+
     setState(() {
       isLoading = true;
     });
 
     try {
+      // Load receipt preference
+      _showScannedReceipts = await _dataService.getShowScannedReceipts();
+
       _hasPlaidConnection = await _plaidService.hasPlaidConnection();
-      
+
       if (_hasPlaidConnection) {
         await _loadPlaidTransactions();
       } else {
         await _loadLocalTransactions();
       }
+
+      // Load transaction counts
+      _transactionCounts =
+          await _dataService.getTransactionCounts(context: context);
     } catch (e) {
       print('Error initializing transaction data: $e');
       if (mounted) {
@@ -68,11 +79,13 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
   Future<void> _loadPlaidTransactions() async {
     if (!mounted) return;
-    
+
     try {
-      // Load transactions with context
-      final allTransactions = await _dataService.getTransactions(context: context);
-      
+      final allTransactions = await _dataService.getTransactions(
+        context: context,
+        includeScannedReceipts: _showScannedReceipts,
+      );
+
       if (!mounted) return;
 
       setState(() {
@@ -96,14 +109,17 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
   Future<void> _loadLocalTransactions() async {
     if (!mounted) return;
-    
+
     try {
-      final localTransactions = await _dataService.getTransactions();
-      
+      final localTransactions = await _dataService.getTransactions(
+        includeScannedReceipts: _showScannedReceipts,
+      );
+
       if (!mounted) return;
-      
+
       setState(() {
-        transactions = localTransactions..sort((a, b) => b.date.compareTo(a.date));
+        transactions = localTransactions
+          ..sort((a, b) => b.date.compareTo(a.date));
         _hasPlaidConnection = false;
         _filterTransactions(_searchController.text);
       });
@@ -117,6 +133,19 @@ class _TransactionScreenState extends State<TransactionScreen> {
         });
       }
     }
+  }
+
+  Future<void> _toggleScannedReceipts() async {
+    setState(() {
+      _showScannedReceipts = !_showScannedReceipts;
+    });
+
+    await _dataService.setShowScannedReceipts(_showScannedReceipts);
+    await _initializeData();
+  }
+
+  bool _isScannedReceipt(Transaction transaction) {
+    return transaction.merchantMetadata?['receipt_scanned'] == true;
   }
 
   List<String> _getAvailableMonths() {
@@ -135,7 +164,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
   void _filterByMonth(String month) {
     if (!mounted) return;
-    
+
     setState(() {
       selectedMonth = month;
       _filterTransactions(_searchController.text);
@@ -144,7 +173,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
   void _filterTransactions(String query) {
     if (!mounted) return;
-    
+
     setState(() {
       filteredTransactions = transactions.where((transaction) {
         final matchesSearch = query.isEmpty ||
@@ -165,10 +194,10 @@ class _TransactionScreenState extends State<TransactionScreen> {
             transaction.transactionType == selectedTransactionType;
 
         final matchesDateRange = selectedDateRange == null ||
-            (transaction.date.isAfter(selectedDateRange!.start
-                    .subtract(const Duration(days: 1))) &&
-                transaction.date.isBefore(
-                    selectedDateRange!.end.add(const Duration(days: 1))));
+            (transaction.date.isAfter(
+                    selectedDateRange!.start.subtract(const Duration(days: 1))) &&
+                transaction.date
+                    .isBefore(selectedDateRange!.end.add(const Duration(days: 1))));
 
         final matchesMonth =
             DateFormat('MMMM yyyy').format(transaction.date) == selectedMonth;
@@ -236,9 +265,71 @@ class _TransactionScreenState extends State<TransactionScreen> {
     );
   }
 
+  Widget _buildReceiptToggle() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5), // A light grey, slicker color
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey.shade300,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2B3A55).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.receipt_long,
+              color: Color(0xFF2B3A55), // Theme color
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Scanned Receipts',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF2B3A55), // Theme color
+                  ),
+                ),
+                if (_transactionCounts['scanned'] != null &&
+                    _transactionCounts['scanned']! > 0)
+                  Text(
+                    '${_transactionCounts['scanned']} receipts found',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _showScannedReceipts,
+            onChanged: (value) => _toggleScannedReceipts(),
+            activeColor: const Color(0xFFE5BA73), // Accent color from the theme
+            inactiveTrackColor: Colors.grey.shade300,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ],
+      ),
+    );
+  }
+
   void _resetFilters() {
     if (!mounted) return;
-    
+
     setState(() {
       selectedCategory = 'All';
       selectedTransactionType = 'All';
@@ -390,7 +481,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
                             setModalState(() {
                               if (mounted) {
                                 setState(() {
-                                  selectedTransactionType = selected ? type : 'All';
+                                  selectedTransactionType =
+                                      selected ? type : 'All';
                                   _filterTransactions(_searchController.text);
                                 });
                               }
@@ -541,6 +633,18 @@ class _TransactionScreenState extends State<TransactionScreen> {
     );
   }
 
+  void _handleScanReceipt() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ReceiptScannerScreen(),
+      ),
+    ).then((_) {
+      // Refresh data when returning from scanner
+      _initializeData();
+    });
+  }
+
   Future<void> _handleRefresh() async {
     if (!mounted) return;
     await _initializeData();
@@ -603,7 +707,15 @@ class _TransactionScreenState extends State<TransactionScreen> {
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.add_circle, color: Colors.white),
+                          icon: const Icon(Icons.document_scanner,
+                              color: Colors.white),
+                          onPressed: _handleScanReceipt,
+                          tooltip: 'Scan Receipt',
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon:
+                              const Icon(Icons.add_circle, color: Colors.white),
                           onPressed: _handleAddTransaction,
                           tooltip: 'Add Transaction',
                         ),
@@ -642,7 +754,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Connect your bank account to see transactions\nor add them manually',
+                          'Connect your bank account, scan receipts,\nor add transactions manually',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 16,
@@ -650,8 +762,10 @@ class _TransactionScreenState extends State<TransactionScreen> {
                           ),
                         ),
                         const SizedBox(height: 32),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          alignment: WrapAlignment.center,
                           children: [
                             ElevatedButton.icon(
                               onPressed: _handleConnectAccount,
@@ -660,18 +774,30 @@ class _TransactionScreenState extends State<TransactionScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFE5BA73),
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 12),
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            ElevatedButton.icon(
+                              onPressed: _handleScanReceipt,
+                              icon: const Icon(Icons.document_scanner),
+                              label: const Text('Scan Receipt'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2B3A55),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 12),
+                              ),
+                            ),
                             ElevatedButton.icon(
                               onPressed: _handleAddTransaction,
                               icon: const Icon(Icons.add),
                               label: const Text('Add Manually'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF2B3A55),
+                                backgroundColor: Colors.grey[600],
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 12),
                               ),
                             ),
                           ],
@@ -721,7 +847,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
                           if (_hasPlaidConnection) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Colors.green.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(8),
@@ -741,13 +868,20 @@ class _TransactionScreenState extends State<TransactionScreen> {
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.download, color: Colors.white),
+                            icon:
+                                const Icon(Icons.download, color: Colors.white),
                             onPressed: _handleDownload,
                             tooltip: 'Download Transactions',
                           ),
-                          const SizedBox(width: 8),
                           IconButton(
-                            icon: const Icon(Icons.add_circle, color: Colors.white),
+                            icon: const Icon(Icons.document_scanner,
+                                color: Colors.white),
+                            onPressed: _handleScanReceipt,
+                            tooltip: 'Scan Receipt',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle,
+                                color: Colors.white),
                             onPressed: _handleAddTransaction,
                             tooltip: 'Add Transaction',
                           ),
@@ -770,7 +904,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
                         hintText: 'Search transactions...',
                         hintStyle: const TextStyle(color: Colors.white70),
                         border: InputBorder.none,
-                        prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                        prefixIcon:
+                            const Icon(Icons.search, color: Colors.white70),
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.tune, color: Colors.white70),
                           onPressed: _showFilterMenu,
@@ -789,7 +924,10 @@ class _TransactionScreenState extends State<TransactionScreen> {
               ),
             ),
             _buildMonthSelector(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            // Receipt toggle
+            _buildReceiptToggle(),
+            const SizedBox(height: 8),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _handleRefresh,
@@ -810,7 +948,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                transactions.isEmpty 
+                                transactions.isEmpty
                                     ? 'No transactions available'
                                     : 'No transactions found for current filters',
                                 style: const TextStyle(
@@ -825,6 +963,16 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                   child: const Text('Clear Filters'),
                                 ),
                               ],
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: _handleScanReceipt,
+                                icon: const Icon(Icons.document_scanner),
+                                label: const Text('Scan a Receipt'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2B3A55),
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
                             ],
                           ),
                         )
@@ -832,7 +980,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
                           padding: EdgeInsets.zero,
                           itemCount: groupedTransactions.length,
                           itemBuilder: (context, index) {
-                            final date = groupedTransactions.keys.elementAt(index);
+                            final date =
+                                groupedTransactions.keys.elementAt(index);
                             final dayTransactions = groupedTransactions[date]!;
                             final totalSpend = dayTransactions
                                 .where((t) => t.transactionType == 'Debit')
@@ -844,7 +993,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                 Padding(
                                   padding: const EdgeInsets.all(16.0),
                                   child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
                                         date,
@@ -870,14 +1020,18 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (context) => TransactionDetailScreen(
+                                            builder: (context) =>
+                                                TransactionDetailScreen(
                                               transaction: transaction,
                                               onDelete: transaction.isPersonal
                                                   ? () {
                                                       if (mounted) {
                                                         setState(() {
-                                                          transactions.remove(transaction);
-                                                          _filterTransactions(_searchController.text);
+                                                          transactions.remove(
+                                                              transaction);
+                                                          _filterTransactions(
+                                                              _searchController
+                                                                  .text);
                                                         });
                                                       }
                                                     }
@@ -889,29 +1043,41 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                       leading: Container(
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
-                                          color: _getCategoryColor(transaction.category).withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(8),
+                                          color: _getCategoryColor(
+                                                  transaction.category)
+                                              .withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                         child: transaction.hasLogo
                                             ? ClipRRect(
-                                                borderRadius: BorderRadius.circular(4),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
                                                 child: Image.network(
                                                   transaction.merchantLogoUrl!,
                                                   width: 24,
                                                   height: 24,
                                                   fit: BoxFit.cover,
-                                                  errorBuilder: (context, error, stackTrace) {
+                                                  errorBuilder: (context, error,
+                                                      stackTrace) {
                                                     return Icon(
-                                                      getCategoryIcons()[transaction.category] ?? Icons.category,
-                                                      color: _getCategoryColor(transaction.category),
+                                                      getCategoryIcons()[
+                                                              transaction
+                                                                  .category] ??
+                                                          Icons.category,
+                                                      color: _getCategoryColor(
+                                                          transaction.category),
                                                       size: 24,
                                                     );
                                                   },
                                                 ),
                                               )
                                             : Icon(
-                                                getCategoryIcons()[transaction.category] ?? Icons.category,
-                                                color: _getCategoryColor(transaction.category),
+                                                getCategoryIcons()[
+                                                        transaction.category] ??
+                                                    Icons.category,
+                                                color: _getCategoryColor(
+                                                    transaction.category),
                                                 size: 24,
                                               ),
                                       ),
@@ -927,30 +1093,67 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                          if (transaction.isPersonal)
+                                          // Receipt indicator
+                                          if (_isScannedReceipt(transaction))
                                             Container(
-                                              margin: const EdgeInsets.only(left: 4),
-                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                              margin: const EdgeInsets.only(
+                                                  left: 4),
+                                              padding: const EdgeInsets
+                                                  .symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 1),
                                               decoration: BoxDecoration(
-                                                color: Colors.blue.withOpacity(0.1),
-                                                borderRadius: BorderRadius.circular(4),
+                                                color: const Color(0xFFE5BA73)
+                                                    .withOpacity(0.2),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: const Text(
+                                                'RECEIPT',
+                                                style: TextStyle(
+                                                  fontSize: 8,
+                                                  color: Color(0xFFE5BA73),
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          if (transaction.isPersonal &&
+                                              !_isScannedReceipt(transaction))
+                                            Container(
+                                              margin: const EdgeInsets.only(
+                                                  left: 4),
+                                              padding: const EdgeInsets
+                                                  .symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: Colors.green
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
                                               ),
                                               child: const Text(
                                                 'MANUAL',
                                                 style: TextStyle(
                                                   fontSize: 8,
-                                                  color: Colors.blue,
+                                                  color: Colors.green,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                             ),
                                           if (transaction.isRecurring)
                                             Container(
-                                              margin: const EdgeInsets.only(left: 4),
-                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                              margin: const EdgeInsets.only(
+                                                  left: 4),
+                                              padding: const EdgeInsets
+                                                  .symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 1),
                                               decoration: BoxDecoration(
-                                                color: Colors.orange.withOpacity(0.1),
-                                                borderRadius: BorderRadius.circular(4),
+                                                color: Colors.orange
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
                                               ),
                                               child: const Text(
                                                 'RECURRING',
@@ -976,7 +1179,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                             : '-\$${transaction.amount.toStringAsFixed(2)}',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          color: transaction.transactionType == 'Credit'
+                                          color: transaction.transactionType ==
+                                                  'Credit'
                                               ? Colors.green
                                               : const Color(0xFF2B3A55),
                                         ),
