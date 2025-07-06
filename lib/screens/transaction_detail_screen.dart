@@ -191,6 +191,98 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     );
   }
 
+  // Fixed logo widget that fills the entire container
+  Widget _buildMerchantLogo() {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: widget.transaction.hasLogo
+            ? Image.network(
+                widget.transaction.merchantLogoUrl!,
+                fit: BoxFit.cover, // This ensures the logo fills the entire container
+                width: 64,
+                height: 64,
+                errorBuilder: (context, error, stackTrace) {
+                  // Try effective logo as fallback
+                  if (widget.transaction.effectiveLogo != null) {
+                    return Image.network(
+                      widget.transaction.effectiveLogo!,
+                      fit: BoxFit.cover,
+                      width: 64,
+                      height: 64,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildFallbackIcon();
+                      },
+                    );
+                  }
+                  return _buildFallbackIcon();
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              )
+            : widget.transaction.effectiveLogo != null
+                ? Image.network(
+                    widget.transaction.effectiveLogo!,
+                    fit: BoxFit.cover,
+                    width: 64,
+                    height: 64,
+                    errorBuilder: (context, error, stackTrace) {
+                      return _buildFallbackIcon();
+                    },
+                  )
+                : _buildFallbackIcon(),
+      ),
+    );
+  }
+
+  Widget _buildFallbackIcon() {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Icon(
+        _getCategoryIcon(),
+        color: Colors.white,
+        size: 32,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final categoryColor = _getCategoryColor();
@@ -300,71 +392,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                         ),
                         const SizedBox(height: 24),
                         
-                        // Enhanced Merchant Logo and Info
+                        // Enhanced Merchant Logo and Info with fixed logo display
                         Row(
                           children: [
-                            // Merchant Logo with Plaid Enrich support
-                            Container(
-                              width: 64,
-                              height: 64,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                              ),
-                              child: widget.transaction.hasLogo
-                                  ? ClipRRect(
-                                      borderRadius: BorderRadius.circular(15),
-                                      child: Image.network(
-                                        widget.transaction.merchantLogoUrl!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          // Try effective logo as fallback
-                                          if (widget.transaction.effectiveLogo != null) {
-                                            return Image.network(
-                                              widget.transaction.effectiveLogo!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return Icon(
-                                                  _getCategoryIcon(),
-                                                  color: Colors.white,
-                                                  size: 32,
-                                                );
-                                              },
-                                            );
-                                          }
-                                          return Icon(
-                                            _getCategoryIcon(),
-                                            color: Colors.white,
-                                            size: 32,
-                                          );
-                                        },
-                                      ),
-                                    )
-                                  : widget.transaction.effectiveLogo != null
-                                      ? ClipRRect(
-                                          borderRadius: BorderRadius.circular(15),
-                                          child: Image.network(
-                                            widget.transaction.effectiveLogo!,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) {
-                                              return Icon(
-                                                _getCategoryIcon(),
-                                                color: Colors.white,
-                                                size: 32,
-                                              );
-                                            },
-                                          ),
-                                        )
-                                      : Icon(
-                                          _getCategoryIcon(),
-                                          color: Colors.white,
-                                          size: 32,
-                                        ),
-                            ),
+                            // Fixed Merchant Logo
+                            _buildMerchantLogo(),
                             const SizedBox(width: 16),
                             
                             // Enhanced Merchant Name and Category
