@@ -20,7 +20,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
   List<Transaction> filteredTransactions = [];
   bool isLoading = true;
   bool _hasPlaidConnection = false;
-  bool _showScannedReceipts = true;
   Map<String, int> _transactionCounts = {};
 
   final TextEditingController _searchController = TextEditingController();
@@ -49,9 +48,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
     });
 
     try {
-      // Load receipt preference
-      _showScannedReceipts = await _dataService.getShowScannedReceipts();
-
       _hasPlaidConnection = await _plaidService.hasPlaidConnection();
 
       if (_hasPlaidConnection) {
@@ -60,7 +56,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
         await _loadLocalTransactions();
       }
 
-      // Load transaction counts
       _transactionCounts =
           await _dataService.getTransactionCounts(context: context);
     } catch (e) {
@@ -83,7 +78,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
     try {
       final allTransactions = await _dataService.getTransactions(
         context: context,
-        includeScannedReceipts: _showScannedReceipts,
       );
 
       if (!mounted) return;
@@ -111,9 +105,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
     if (!mounted) return;
 
     try {
-      final localTransactions = await _dataService.getTransactions(
-        includeScannedReceipts: _showScannedReceipts,
-      );
+      final localTransactions = await _dataService.getTransactions();
 
       if (!mounted) return;
 
@@ -133,19 +125,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
         });
       }
     }
-  }
-
-  Future<void> _toggleScannedReceipts() async {
-    setState(() {
-      _showScannedReceipts = !_showScannedReceipts;
-    });
-
-    await _dataService.setShowScannedReceipts(_showScannedReceipts);
-    await _initializeData();
-  }
-
-  bool _isScannedReceipt(Transaction transaction) {
-    return transaction.merchantMetadata?['receipt_scanned'] == true;
   }
 
   List<String> _getAvailableMonths() {
@@ -261,68 +240,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildReceiptToggle() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5), // A light grey, slicker color
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.shade300,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2B3A55).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.receipt_long,
-              color: Color(0xFF2B3A55), // Theme color
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Scanned Receipts',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2B3A55), // Theme color
-                  ),
-                ),
-                if (_transactionCounts['scanned'] != null &&
-                    _transactionCounts['scanned']! > 0)
-                  Text(
-                    '${_transactionCounts['scanned']} receipts found',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Switch(
-            value: _showScannedReceipts,
-            onChanged: (value) => _toggleScannedReceipts(),
-            activeColor: const Color(0xFFE5BA73), // Accent color from the theme
-            inactiveTrackColor: Colors.grey.shade300,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ],
       ),
     );
   }
@@ -684,7 +601,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
       );
     }
 
-    // Show connection prompt if no Plaid connection and no local transactions
     if (!_hasPlaidConnection && transactions.isEmpty) {
       return Scaffold(
         backgroundColor: const Color(0xFF2B3A55),
@@ -924,10 +840,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
               ),
             ),
             _buildMonthSelector(),
-            const SizedBox(height: 8),
-            // Receipt toggle
-            _buildReceiptToggle(),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _handleRefresh,
@@ -1093,77 +1006,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                          // Receipt indicator
-                                          if (_isScannedReceipt(transaction))
-                                            Container(
-                                              margin: const EdgeInsets.only(
-                                                  left: 4),
-                                              padding: const EdgeInsets
-                                                  .symmetric(
-                                                      horizontal: 4,
-                                                      vertical: 1),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFE5BA73)
-                                                    .withOpacity(0.2),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: const Text(
-                                                'RECEIPT',
-                                                style: TextStyle(
-                                                  fontSize: 8,
-                                                  color: Color(0xFFE5BA73),
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                          if (transaction.isPersonal &&
-                                              !_isScannedReceipt(transaction))
-                                            Container(
-                                              margin: const EdgeInsets.only(
-                                                  left: 4),
-                                              padding: const EdgeInsets
-                                                  .symmetric(
-                                                      horizontal: 4,
-                                                      vertical: 1),
-                                              decoration: BoxDecoration(
-                                                color: Colors.green
-                                                    .withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: const Text(
-                                                'MANUAL',
-                                                style: TextStyle(
-                                                  fontSize: 8,
-                                                  color: Colors.green,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                          if (transaction.isRecurring)
-                                            Container(
-                                              margin: const EdgeInsets.only(
-                                                  left: 4),
-                                              padding: const EdgeInsets
-                                                  .symmetric(
-                                                      horizontal: 4,
-                                                      vertical: 1),
-                                              decoration: BoxDecoration(
-                                                color: Colors.orange
-                                                    .withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: const Text(
-                                                'RECURRING',
-                                                style: TextStyle(
-                                                  fontSize: 8,
-                                                  color: Colors.orange,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
                                         ],
                                       ),
                                       subtitle: Text(
