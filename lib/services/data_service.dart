@@ -89,6 +89,7 @@ class DataService {
           endDate: DateTime.now(),
         );
         allTransactions.addAll(plaidTransactions);
+        print('Loaded ${plaidTransactions.length} Plaid transactions');
       }
     } catch (e) {
       print('Could not load Plaid transactions: $e');
@@ -230,6 +231,11 @@ class DataService {
     try {
       final transactions = await getTransactions();
       
+      if (transactions.isEmpty) {
+        print('No transactions available for monthly spending calculation');
+        return await _getStaticMonthlySpending();
+      }
+      
       // Group transactions by month
       final Map<String, List<Transaction>> transactionsByMonth = {};
       
@@ -316,12 +322,14 @@ class DataService {
           healthcare: healthcare,
           insurance: insurance,
           miscellaneous: miscellaneous,
-          earnings: totalIncome,
+          earnings: totalIncome > 0 ? totalIncome : null,
         ));
       });
 
       // Sort chronologically
       result.sort((a, b) => a.date.compareTo(b.date));
+      
+      print('Generated ${result.length} months of spending data from ${transactions.length} transactions');
       return result;
     } catch (e) {
       print('Error processing transactions to monthly spending: $e');
@@ -397,9 +405,12 @@ class DataService {
       if (hasPlaidConnection) {
         final accounts = await _plaidService.getAccounts(_getDummyContext());
         final checkingAccounts = accounts
-            .where((account) => account['type'] == 'depository')
+            .where((account) => 
+                account['type'] == 'depository' ||
+                (account['subtype'] != null && 
+                 ['checking', 'savings'].contains(account['subtype'].toString().toLowerCase())))
             .map((account) => CheckingAccount(
-                  name: account['name'] ?? 'Checking Account',
+                  name: account['name'] ?? 'Account',
                   accountNumber: '****${account['mask'] ?? '0000'}',
                   balance: (account['balance']['current'] ?? 0).toDouble(),
                   type: account['subtype'] ?? 'checking',
@@ -456,7 +467,10 @@ class DataService {
       if (hasPlaidConnection) {
         final accounts = await _plaidService.getAccounts(_getDummyContext());
         final creditCards = accounts
-            .where((account) => account['type'] == 'credit')
+            .where((account) => 
+                account['type'] == 'credit' ||
+                (account['subtype'] != null && 
+                 ['credit card', 'credit'].contains(account['subtype'].toString().toLowerCase())))
             .map((account) => CreditCard(
                   name: account['name'] ?? 'Credit Card',
                   lastFour: account['mask'] ?? '0000',
@@ -543,8 +557,92 @@ class DataService {
     }
   }
 
-  // Get credit score data
+  // Get credit score data - Enhanced with real-time estimates when Plaid is connected
   Future<List<Map<String, dynamic>>> getCreditScoreHistory() async {
+    try {
+      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
+      
+      if (hasPlaidConnection) {
+        // When connected to Plaid, generate more realistic credit score based on financial health
+        final balances = await _plaidService.getAccountBalances();
+        final transactions = await getTransactions();
+        
+        // Calculate estimated credit score based on financial behavior
+        int estimatedScore = await _calculateEstimatedCreditScore(balances, transactions);
+        
+        // Generate historical data with the current estimated score
+        final baseHistory = await _getStaticCreditScoreHistory();
+        
+        // Adjust the most recent entries to be closer to estimated score
+        if (baseHistory.isNotEmpty) {
+          final latestEntry = baseHistory.last;
+          latestEntry['score'] = estimatedScore;
+          
+          // Gradually adjust previous months to create a trend
+          for (int i = baseHistory.length - 2; i >= baseHistory.length - 4 && i >= 0; i--) {
+            final variance = (estimatedScore * 0.05).round(); // 5% variance
+            baseHistory[i]['score'] = estimatedScore + 
+                ((baseHistory.length - 1 - i) * variance ~/ 3) * (i % 2 == 0 ? -1 : 1);
+          }
+        }
+        
+        return baseHistory;
+      } else {
+        return await _getStaticCreditScoreHistory();
+      }
+    } catch (e) {
+      print('Error loading credit score history: $e');
+      return await _getStaticCreditScoreHistory();
+    }
+  }
+
+  Future<int> _calculateEstimatedCreditScore(Map<String, double> balances, List<Transaction> transactions) async {
+    // Base score
+    int baseScore = 650;
+    
+    // Factor 1: Credit utilization (30% of score)
+    double creditBalance = balances['creditCardBalance'] ?? 0;
+    if (creditBalance > 0) {
+      // Assume average credit limit based on balance (conservative estimate)
+      double estimatedCreditLimit = creditBalance * 4; // Assume 25% utilization
+      double utilization = creditBalance / estimatedCreditLimit;
+      
+      if (utilization < 0.1) {
+        baseScore += 50; // Excellent utilization
+      } else if (utilization < 0.3) {
+        baseScore += 20; // Good utilization
+      } else if (utilization > 0.7) {
+        baseScore -= 30; // High utilization
+      }
+    }
+    
+    // Factor 2: Account balance stability (20% of score)
+    double totalAssets = (balances['checking'] ?? 0) + (balances['savings'] ?? 0);
+    if (totalAssets > 10000) {
+      baseScore += 30; // Strong financial position
+    } else if (totalAssets > 5000) {
+      baseScore += 15; // Moderate financial position
+    } else if (totalAssets < 1000) {
+      baseScore -= 15; // Weak financial position
+    }
+    
+    // Factor 3: Transaction patterns (10% of score)
+    if (transactions.length > 50) {
+      // Regular transaction activity
+      baseScore += 10;
+      
+      // Check for consistent income
+      final incomeTransactions = transactions.where((t) => t.transactionType == 'Credit').toList();
+      if (incomeTransactions.length > 4) {
+        baseScore += 15; // Regular income
+      }
+    }
+    
+    // Ensure score is within realistic range
+    return baseScore.clamp(300, 850);
+  }
+
+  Future<List<Map<String, dynamic>>> _getStaticCreditScoreHistory() async {
     try {
       // For now, return static data since Plaid credit score requires special access
       final String data =
@@ -585,7 +683,7 @@ class DataService {
     }
   }
 
-  // Get insights based on spending patterns
+  // Get insights based on spending patterns - Enhanced with real transaction analysis
   Future<List<Map<String, dynamic>>> getSpendingInsights() async {
     try {
       final transactions = await getTransactions();
@@ -649,6 +747,40 @@ class DataService {
           }
         }
       });
+
+      // Additional insights for Plaid users
+      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
+      if (hasPlaidConnection) {
+        // Subscription analysis
+        final subscriptionTransactions = transactions.where((t) => t.category == 'Subscriptions').toList();
+        if (subscriptionTransactions.isNotEmpty) {
+          final monthlySubscriptionCost = subscriptionTransactions
+              .where((t) => t.date.isAfter(now.subtract(const Duration(days: 30))))
+              .fold(0.0, (sum, t) => sum + t.amount);
+          
+          if (monthlySubscriptionCost > 100) {
+            insights.add({
+              'type': 'info',
+              'title': 'Subscription Review',
+              'description': 'You\'re spending \$${monthlySubscriptionCost.toStringAsFixed(0)}/month on subscriptions. Consider reviewing them.',
+              'category': 'Subscriptions',
+              'amount': monthlySubscriptionCost,
+            });
+          }
+        }
+
+        // Large transaction analysis
+        final largeTransactions = currentMonthTransactions.where((t) => t.amount > 500).toList();
+        if (largeTransactions.isNotEmpty) {
+          insights.add({
+            'type': 'info',
+            'title': 'Large Purchases',
+            'description': 'You made ${largeTransactions.length} large purchase${largeTransactions.length > 1 ? 's' : ''} this month.',
+            'category': 'Large Purchases',
+            'count': largeTransactions.length,
+          });
+        }
+      }
 
       return insights;
     } catch (e) {

@@ -5,6 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:finsight/models/transaction.dart' as app_model;
 
+// Import the new categorization service
+// import 'package:finsight/services/merchant_categorization_service.dart';
+
 class PlaidService {
   // Plaid configuration
   static const String _plaidClientId = '67214ae1946242001a565c22';
@@ -27,6 +30,7 @@ class PlaidService {
   // Instance variables
   String? _accessToken;
   List<Map<String, dynamic>>? _cachedAccounts;
+  // final MerchantCategorizationService _categorizationService = MerchantCategorizationService();
   
   // Step 1: Create Link Token
   Future<String?> createLinkToken() async {
@@ -124,7 +128,7 @@ class PlaidService {
     }
   }
 
-  // Fetch transactions from Plaid
+  // Fetch transactions from Plaid with enhanced merchant categorization
   Future<List<app_model.Transaction>> fetchTransactions({
     required BuildContext context,
     DateTime? startDate,
@@ -162,6 +166,7 @@ class PlaidService {
           'options': {
             'count': 500,
             'offset': offset,
+            'include_personal_finance_category': true,
           },
         });
 
@@ -187,136 +192,362 @@ class PlaidService {
         }
       }
       
-      // Convert Plaid transactions to app's Transaction model
-      final transactions = allTransactions.map((trx) {
-        final amount = trx['amount'] != null ? double.parse(trx['amount'].toString()) : 0.0;
-        final category = _mapPlaidCategory(trx['category'], trx['name'] ?? '');
-        
-        return app_model.Transaction(
-          id: trx['transaction_id'],
-          date: DateTime.parse(trx['date']),
-          description: trx['name'] ?? 'Unknown Transaction',
-          category: category,
-          amount: amount.abs(),
-          account: trx['account_owner'] ?? 'Unknown Account', 
-          transactionType: amount > 0 ? 'Debit' : 'Credit',
-          isPersonal: false,
-        );
-      }).toList();
+      print('Fetched ${allTransactions.length} raw transactions from Plaid');
       
-      return transactions;
+      // Convert Plaid transactions to app's Transaction model with enhanced categorization
+      final List<app_model.Transaction> processedTransactions = [];
+      
+      for (final trx in allTransactions) {
+        try {
+          final amount = trx['amount'] != null ? double.parse(trx['amount'].toString()) : 0.0;
+          final merchantName = trx['merchant_name'] ?? trx['name'] ?? 'Unknown Transaction';
+          final description = trx['name'] ?? 'Unknown Transaction';
+          
+          // Use enhanced categorization
+          final category = await _enhancedCategorizeTransaction(
+            merchantName, 
+            description, 
+            trx['category'],
+            trx['personal_finance_category']
+          );
+          
+          // Get merchant info for enhanced display
+          final merchantInfo = await _getMerchantDisplayInfo(merchantName, description);
+          
+          final transaction = app_model.Transaction(
+            id: trx['transaction_id'],
+            date: DateTime.parse(trx['date']),
+            description: merchantInfo['displayName'] ?? description,
+            category: category,
+            amount: amount.abs(),
+            account: trx['account_owner'] ?? 'Unknown Account', 
+            transactionType: amount > 0 ? 'Debit' : 'Credit',
+            isPersonal: false,
+            merchantName: merchantName,
+            merchantLogoUrl: merchantInfo['logoUrl'],
+            merchantWebsite: merchantInfo['website'],
+            originalDescription: description,
+            plaidCategory: trx['category']?.isNotEmpty == true ? trx['category'].join(', ') : null,
+          );
+          
+          processedTransactions.add(transaction);
+        } catch (e) {
+          print('Error processing transaction: $e');
+          continue;
+        }
+      }
+      
+      print('Successfully processed ${processedTransactions.length} transactions');
+      return processedTransactions;
     } catch (e) {
       print('Exception in fetchTransactions: $e');
       throw Exception('Failed to fetch transactions: $e');
     }
   }
 
-  // Enhanced category mapping with subscription detection
-  String _mapPlaidCategory(List<dynamic>? plaidCategories, String transactionName) {
-    if (plaidCategories == null || plaidCategories.isEmpty) {
-      return _detectSubscriptionOrMisc(transactionName);
+  // Enhanced transaction categorization using comprehensive merchant database
+  Future<String> _enhancedCategorizeTransaction(
+    String merchantName, 
+    String description, 
+    List<dynamic>? plaidCategories,
+    Map<String, dynamic>? personalFinanceCategory
+  ) async {
+    // Clean up merchant name and description
+    final cleanMerchant = _cleanMerchantName(merchantName);
+    final cleanDescription = _cleanMerchantName(description);
+    
+    // Try merchant database first (most accurate)
+    final merchantCategory = _getMerchantCategory(cleanMerchant, cleanDescription);
+    if (merchantCategory != null) {
+      return merchantCategory;
     }
-    
-    final primaryCategory = plaidCategories.first.toString().toLowerCase();
-    final detailedCategory = plaidCategories.length > 1 ? plaidCategories.last.toString().toLowerCase() : '';
-    final name = transactionName.toLowerCase();
-    
-    // Check for subscriptions first
-    if (_isSubscription(name, primaryCategory, detailedCategory)) {
-      return 'Subscriptions';
+
+    // Try Plaid's personal finance category (newer, more accurate)
+    if (personalFinanceCategory != null) {
+      final pfcCategory = _mapPersonalFinanceCategory(personalFinanceCategory);
+      if (pfcCategory != null) {
+        return pfcCategory;
+      }
     }
-    
-    // Food categories
-    if (primaryCategory.contains('food') || detailedCategory.contains('restaurant') || 
-        detailedCategory.contains('fast food') || detailedCategory.contains('cafe')) {
-      return 'Dining Out';
+
+    // Try traditional Plaid categories
+    if (plaidCategories != null && plaidCategories.isNotEmpty) {
+      final plaidCategory = _mapPlaidCategories(plaidCategories);
+      if (plaidCategory != null) {
+        return plaidCategory;
+      }
     }
-    
-    // Grocery stores
-    if (detailedCategory.contains('grocery') || detailedCategory.contains('supermarket') || 
-        name.contains('whole foods') || name.contains('trader joe') || name.contains('safeway') ||
-        name.contains('kroger') || name.contains('walmart') || name.contains('target')) {
-      return 'Groceries';
+
+    // Keyword-based classification as final fallback
+    final keywordCategory = _classifyByAdvancedKeywords(cleanMerchant, cleanDescription);
+    if (keywordCategory != null) {
+      return keywordCategory;
     }
-    
-    // Shopping
-    if (primaryCategory.contains('shop') || primaryCategory.contains('retail') ||
-        detailedCategory.contains('department') || detailedCategory.contains('clothing') ||
-        detailedCategory.contains('electronics')) {
-      return 'Shopping';
-    }
-    
-    // Transportation
-    if (primaryCategory.contains('transport') || detailedCategory.contains('gas') ||
-        detailedCategory.contains('parking') || detailedCategory.contains('taxi') ||
-        detailedCategory.contains('public transport') || name.contains('uber') || name.contains('lyft')) {
-      return 'Transportation';
-    }
-    
-    // Entertainment
-    if (primaryCategory.contains('entertainment') || primaryCategory.contains('recreation') ||
-        detailedCategory.contains('movie') || detailedCategory.contains('music') ||
-        detailedCategory.contains('sports') || detailedCategory.contains('gym')) {
-      return 'Entertainment';
-    }
-    
-    // Healthcare
-    if (primaryCategory.contains('healthcare') || primaryCategory.contains('medical') ||
-        detailedCategory.contains('doctor') || detailedCategory.contains('pharmacy') ||
-        detailedCategory.contains('hospital')) {
-      return 'Healthcare';
-    }
-    
-    // Insurance
-    if (primaryCategory.contains('insurance') || detailedCategory.contains('insurance')) {
-      return 'Insurance';
-    }
-    
-    // Utilities
-    if (primaryCategory.contains('utilities') || detailedCategory.contains('internet') ||
-        detailedCategory.contains('phone') || detailedCategory.contains('electric') ||
-        detailedCategory.contains('water') || detailedCategory.contains('gas')) {
-      return 'Utilities';
-    }
-    
-    // Housing/Rent
-    if (primaryCategory.contains('rent') || primaryCategory.contains('mortgage') ||
-        detailedCategory.contains('housing') || detailedCategory.contains('rent')) {
-      return 'Rent';
-    }
-    
+
     return 'Miscellaneous';
   }
 
-  // Check if transaction is a subscription
-  bool _isSubscription(String name, String primaryCategory, String detailedCategory) {
-    // Common subscription patterns
-    final subscriptionPatterns = [
-      'netflix', 'spotify', 'amazon prime', 'hulu', 'disney plus', 'apple music',
-      'youtube premium', 'adobe', 'microsoft', 'google', 'dropbox', 'icloud',
-      'gym', 'fitness', 'subscription', 'monthly', 'recurring'
-    ];
+  String? _getMerchantCategory(String merchantName, String description) {
+    final text = '$merchantName $description'.toLowerCase();
     
-    for (final pattern in subscriptionPatterns) {
-      if (name.contains(pattern)) {
-        return true;
+    // Comprehensive merchant patterns
+    final merchantPatterns = {
+      // Grocery Stores
+      'Groceries': [
+        'whole foods', 'trader joe', 'safeway', 'kroger', 'walmart supercenter',
+        'target', 'costco', 'sams club', 'sam\'s club', 'publix', 'harris teeter',
+        'food lion', 'giant', 'wegmans', 'aldi', 'fresh market', 'sprouts',
+        'market basket', 'h-e-b', 'heb', 'meijer', 'albertsons', 'stop shop',
+        'king soopers', 'fred meyer', 'ralphs', 'vons', 'pavilions', 'acme',
+        'jewel osco', 'shaws', 'star market', 'tom thumb', 'randalls',
+        'instacart', 'shipt', 'grocery', 'supermarket', 'market'
+      ],
+      
+      // Dining Out
+      'Dining Out': [
+        'mcdonalds', 'mcdonald\'s', 'burger king', 'kfc', 'taco bell', 'subway',
+        'chipotle', 'panera', 'chick-fil-a', 'chick fil a', 'in-n-out', 'five guys',
+        'wendys', 'wendy\'s', 'arbys', 'arby\'s', 'popeyes', 'sonic', 'dairy queen',
+        'white castle', 'jack in the box', 'starbucks', 'dunkin', 'dutch bros',
+        'peets', 'caribou', 'pizza hut', 'dominos', 'domino\'s', 'papa johns',
+        'papa john\'s', 'little caesars', 'papa murphy', 'olive garden', 'applebees',
+        'applebee\'s', 'chilis', 'chili\'s', 'outback', 'red lobster', 'buffalo wild wings',
+        'cracker barrel', 'texas roadhouse', 'ihop', 'dennys', 'denny\'s',
+        'doordash', 'uber eats', 'grubhub', 'postmates', 'restaurant', 'cafe', 'diner'
+      ],
+      
+      // Transportation
+      'Transportation': [
+        'shell', 'exxon', 'mobil', 'chevron', 'bp', 'sunoco', 'citgo', 'valero',
+        'marathon', 'speedway', 'wawa', '7-eleven', 'circle k', 'caseys', 'casey\'s',
+        'uber', 'lyft', 'delta', 'american airlines', 'united', 'southwest',
+        'jetblue', 'spirit', 'frontier', 'alaska', 'hertz', 'enterprise', 'budget',
+        'avis', 'national', 'thrifty', 'alamo', 'gas station', 'fuel', 'parking'
+      ],
+      
+      // Shopping
+      'Shopping': [
+        'amazon', 'ebay', 'best buy', 'home depot', 'lowes', 'lowe\'s', 'macys',
+        'macy\'s', 'nordstrom', 'kohls', 'kohl\'s', 'jcpenney', 'tj maxx', 'marshalls',
+        'ross', 'bed bath beyond', 'bath body works', 'victoria secret', 'gap',
+        'old navy', 'banana republic', 'h&m', 'zara', 'uniqlo', 'forever 21',
+        'apple store', 'microsoft store', 'gamestop', 'barnes noble', 'costco',
+        'shopping', 'retail', 'store', 'mall'
+      ],
+      
+      // Healthcare
+      'Healthcare': [
+        'cvs', 'walgreens', 'rite aid', 'kaiser', 'blue cross', 'aetna', 'cigna',
+        'humana', 'united health', 'anthem', 'molina', 'pharmacy', 'hospital',
+        'clinic', 'medical', 'doctor', 'dentist', 'urgent care'
+      ],
+      
+      // Utilities
+      'Utilities': [
+        'verizon', 'at&t', 'att', 'comcast', 'xfinity', 'spectrum', 't-mobile',
+        'tmobile', 'sprint', 'cox', 'time warner', 'directv', 'dish', 'electric',
+        'power', 'gas company', 'water', 'internet', 'cable', 'phone'
+      ],
+      
+      // Subscriptions
+      'Subscriptions': [
+        'netflix', 'spotify', 'amazon prime', 'hulu', 'disney plus', 'disney+',
+        'apple music', 'youtube premium', 'adobe', 'microsoft 365', 'office 365',
+        'google one', 'dropbox', 'icloud', 'paramount', 'hbo max', 'peacock',
+        'discovery+', 'subscription', 'membership'
+      ],
+      
+      // Entertainment
+      'Entertainment': [
+        'planet fitness', 'la fitness', '24 hour fitness', 'anytime fitness',
+        'equinox', 'soulcycle', 'orange theory', 'peloton', 'amc', 'regal',
+        'cinemark', 'dave busters', 'dave & busters', 'gym', 'fitness', 'movie',
+        'theater', 'cinema'
+      ],
+      
+      // Insurance
+      'Insurance': [
+        'state farm', 'geico', 'progressive', 'allstate', 'farmers', 'liberty mutual',
+        'usaa', 'nationwide', 'metlife', 'prudential', 'insurance'
+      ],
+      
+      // Rent/Housing
+      'Rent': [
+        'apartment', 'property management', 'real estate', 'rent', 'rental',
+        'lease', 'housing', 'mortgage'
+      ]
+    };
+
+    for (final category in merchantPatterns.keys) {
+      for (final pattern in merchantPatterns[category]!) {
+        if (text.contains(pattern)) {
+          return category;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  String? _mapPersonalFinanceCategory(Map<String, dynamic> pfc) {
+    final primary = pfc['primary']?.toString().toLowerCase() ?? '';
+    final detailed = pfc['detailed']?.toString().toLowerCase() ?? '';
+    
+    if (primary.contains('food') || primary.contains('drink')) {
+      if (detailed.contains('groceries')) return 'Groceries';
+      if (detailed.contains('restaurant') || detailed.contains('fast_food')) return 'Dining Out';
+    }
+    
+    if (primary.contains('transportation')) return 'Transportation';
+    if (primary.contains('general_merchandise')) return 'Shopping';
+    if (primary.contains('healthcare')) return 'Healthcare';
+    if (primary.contains('entertainment')) return 'Entertainment';
+    if (primary.contains('personal_care')) return 'Healthcare';
+    if (primary.contains('government')) return 'Miscellaneous';
+    if (primary.contains('travel')) return 'Transportation';
+    if (primary.contains('rent')) return 'Rent';
+    
+    return null;
+  }
+
+  String? _mapPlaidCategories(List<dynamic> categories) {
+    if (categories.isEmpty) return null;
+    
+    final primaryCategory = categories.first.toString().toLowerCase();
+    final detailedCategory = categories.length > 1 ? categories.last.toString().toLowerCase() : '';
+    
+    if (primaryCategory.contains('food') && primaryCategory.contains('drink')) {
+      if (detailedCategory.contains('restaurant') || detailedCategory.contains('fast food') || 
+          detailedCategory.contains('cafe') || detailedCategory.contains('bar')) {
+        return 'Dining Out';
+      }
+      if (detailedCategory.contains('grocery') || detailedCategory.contains('supermarket')) {
+        return 'Groceries';
       }
     }
     
-    // Check categories for subscription indicators
-    if (primaryCategory.contains('subscription') || detailedCategory.contains('subscription') ||
-        primaryCategory.contains('recurring') || detailedCategory.contains('recurring')) {
-      return true;
+    if (primaryCategory.contains('shop') || primaryCategory.contains('retail')) {
+      return 'Shopping';
     }
     
-    return false;
+    if (primaryCategory.contains('transport')) {
+      return 'Transportation';
+    }
+    
+    if (primaryCategory.contains('recreation') || primaryCategory.contains('entertainment')) {
+      return 'Entertainment';
+    }
+    
+    if (primaryCategory.contains('healthcare') || primaryCategory.contains('medical')) {
+      return 'Healthcare';
+    }
+    
+    if (primaryCategory.contains('service')) {
+      if (detailedCategory.contains('utilities') || detailedCategory.contains('internet') ||
+          detailedCategory.contains('phone') || detailedCategory.contains('cable')) {
+        return 'Utilities';
+      }
+    }
+    
+    if (primaryCategory.contains('payment')) {
+      if (detailedCategory.contains('rent') || detailedCategory.contains('mortgage')) {
+        return 'Rent';
+      }
+      if (detailedCategory.contains('insurance')) {
+        return 'Insurance';
+      }
+    }
+    
+    return null;
   }
 
-  String _detectSubscriptionOrMisc(String transactionName) {
-    if (_isSubscription(transactionName.toLowerCase(), '', '')) {
-      return 'Subscriptions';
+  String? _classifyByAdvancedKeywords(String merchantName, String description) {
+    final text = '$merchantName $description';
+    
+    final keywordPatterns = {
+      'Subscriptions': ['recurring', 'monthly', 'annual', 'subscription', 'membership', 'premium', 'pro', 'plus'],
+      'Utilities': ['utility', 'electric', 'power', 'energy', 'water', 'sewer', 'gas', 'internet', 'cable', 'phone'],
+      'Healthcare': ['medical', 'health', 'hospital', 'clinic', 'pharmacy', 'doctor', 'dental'],
+      'Transportation': ['parking', 'toll', 'gas', 'fuel', 'auto', 'car', 'vehicle'],
+      'Entertainment': ['entertainment', 'recreation', 'sports', 'gym', 'fitness'],
+      'Insurance': ['insurance', 'policy', 'coverage'],
+      'Rent': ['rent', 'rental', 'lease', 'property'],
+    };
+
+    for (final category in keywordPatterns.keys) {
+      for (final keyword in keywordPatterns[category]!) {
+        if (text.toLowerCase().contains(keyword)) {
+          return category;
+        }
+      }
     }
-    return 'Miscellaneous';
+
+    return null;
+  }
+
+  Future<Map<String, String?>> _getMerchantDisplayInfo(String merchantName, String description) async {
+    try {
+      // For now, use simplified logic. In full implementation, would use MerchantCategorizationService
+      final cleanName = _cleanMerchantName(merchantName);
+      
+      // Try to get logo from common sources
+      String? logoUrl;
+      String? website;
+      
+      // Map some common merchants to their logos
+      final commonLogos = {
+        'amazon': 'https://logo.clearbit.com/amazon.com',
+        'apple': 'https://logo.clearbit.com/apple.com',
+        'starbucks': 'https://logo.clearbit.com/starbucks.com',
+        'mcdonalds': 'https://logo.clearbit.com/mcdonalds.com',
+        'walmart': 'https://logo.clearbit.com/walmart.com',
+        'target': 'https://logo.clearbit.com/target.com',
+        'costco': 'https://logo.clearbit.com/costco.com',
+        'uber': 'https://logo.clearbit.com/uber.com',
+        'lyft': 'https://logo.clearbit.com/lyft.com',
+        'netflix': 'https://logo.clearbit.com/netflix.com',
+        'spotify': 'https://logo.clearbit.com/spotify.com',
+        'google': 'https://logo.clearbit.com/google.com',
+        'microsoft': 'https://logo.clearbit.com/microsoft.com',
+      };
+      
+      for (final entry in commonLogos.entries) {
+        if (cleanName.contains(entry.key)) {
+          logoUrl = entry.value;
+          website = entry.key + '.com';
+          break;
+        }
+      }
+      
+      return {
+        'displayName': _formatMerchantName(merchantName),
+        'logoUrl': logoUrl,
+        'website': website,
+      };
+    } catch (e) {
+      print('Error getting merchant display info: $e');
+      return {
+        'displayName': merchantName,
+        'logoUrl': null,
+        'website': null,
+      };
+    }
+  }
+
+  String _cleanMerchantName(String name) {
+    return name.toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  String _formatMerchantName(String name) {
+    // Clean up merchant names for better display
+    return name
+        .split(' ')
+        .map((word) => word.isNotEmpty ? word[0].toUpperCase() + word.substring(1).toLowerCase() : '')
+        .join(' ')
+        .trim();
   }
 
   // Get access token

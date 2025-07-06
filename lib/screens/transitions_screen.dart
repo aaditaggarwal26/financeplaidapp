@@ -1,6 +1,7 @@
 import 'package:finsight/exports/transaction_exports.dart';
 import 'package:finsight/screens/add_transactions_screen.dart';
 import 'package:finsight/screens/transaction_detail_screen.dart';
+import 'package:finsight/services/plaid_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:finsight/models/transaction.dart';
@@ -15,9 +16,10 @@ class TransactionScreen extends StatefulWidget {
 
 class _TransactionScreenState extends State<TransactionScreen> {
   List<Transaction> transactions = [];
-  bool isLoading = true;
-  final TextEditingController _searchController = TextEditingController();
   List<Transaction> filteredTransactions = [];
+  bool isLoading = true;
+  bool _hasPlaidConnection = false;
+  final TextEditingController _searchController = TextEditingController();
   String selectedMonth = DateFormat('MMMM yyyy').format(DateTime.now());
 
   String selectedCategory = 'All';
@@ -26,11 +28,92 @@ class _TransactionScreenState extends State<TransactionScreen> {
   DateTimeRange? selectedDateRange;
 
   final ScrollController _monthScrollController = ScrollController();
+  final PlaidService _plaidService = PlaidService();
+  final DataService _dataService = DataService();
 
   @override
   void initState() {
     super.initState();
-    loadTransactions();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      _hasPlaidConnection = await _plaidService.hasPlaidConnection();
+      
+      if (_hasPlaidConnection) {
+        await _loadPlaidTransactions();
+      } else {
+        await _loadLocalTransactions();
+      }
+    } catch (e) {
+      print('Error initializing transaction data: $e');
+      await _loadLocalTransactions();
+    }
+
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+  Future<void> _loadPlaidTransactions() async {
+    try {
+      // Load transactions from the past year
+      final now = DateTime.now();
+      final oneYearAgo = DateTime(now.year - 1, now.month, now.day);
+      
+      final plaidTransactions = await _plaidService.fetchTransactions(
+        context: context,
+        startDate: oneYearAgo,
+        endDate: now,
+      );
+
+      // Also load any manually added transactions
+      final localTransactions = await _dataService.getTransactions();
+      final manualTransactions = localTransactions.where((t) => t.isPersonal).toList();
+
+      // Combine Plaid and manual transactions
+      final allTransactions = [...plaidTransactions, ...manualTransactions];
+      
+      setState(() {
+        transactions = allTransactions..sort((a, b) => b.date.compareTo(a.date));
+        _hasPlaidConnection = true;
+        _filterTransactions(_searchController.text);
+      });
+    } catch (e) {
+      print('Error loading Plaid transactions: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load transactions: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      await _loadLocalTransactions();
+    }
+  }
+
+  Future<void> _loadLocalTransactions() async {
+    try {
+      final localTransactions = await _dataService.getTransactions();
+      setState(() {
+        transactions = localTransactions..sort((a, b) => b.date.compareTo(a.date));
+        _hasPlaidConnection = false;
+        _filterTransactions(_searchController.text);
+      });
+    } catch (e) {
+      print('Error loading local transactions: $e');
+      setState(() {
+        transactions = [];
+        _hasPlaidConnection = false;
+        _filterTransactions(_searchController.text);
+      });
+    }
   }
 
   List<String> _getAvailableMonths() {
@@ -96,6 +179,10 @@ class _TransactionScreenState extends State<TransactionScreen> {
   Widget _buildMonthSelector() {
     final months = _getAvailableMonths();
 
+    if (months.isEmpty) {
+      return const SizedBox(height: 40);
+    }
+
     return Container(
       height: 40,
       decoration: const BoxDecoration(
@@ -142,24 +229,13 @@ class _TransactionScreenState extends State<TransactionScreen> {
     );
   }
 
-  Future<void> loadTransactions() async {
-    final dataService = DataService();
-    final loadedTransactions = await dataService.getTransactions();
-    setState(() {
-      transactions = loadedTransactions
-        ..sort((a, b) => b.date.compareTo(a.date));
-      filteredTransactions = transactions;
-      isLoading = false;
-    });
-  }
-
   void _resetFilters() {
     setState(() {
       selectedCategory = 'All';
       selectedTransactionType = 'All';
       selectedDateRange = null;
       _searchController.clear();
-      filteredTransactions = transactions;
+      _filterTransactions('');
     });
   }
 
@@ -268,7 +344,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                 children: categories
                     .map((category) => ChoiceChip(
                           backgroundColor: Colors.white,
-                          selectedColor: Color(0xFFE5BA73),
+                          selectedColor: const Color(0xFFE5BA73),
                           label: Text(category),
                           selected: selectedCategory == category,
                           onSelected: (selected) {
@@ -290,14 +366,13 @@ class _TransactionScreenState extends State<TransactionScreen> {
                 children: transactionTypes
                     .map((type) => ChoiceChip(
                           backgroundColor: Colors.white,
-                          selectedColor: Color(0xFFE5BA73),
+                          selectedColor: const Color(0xFFE5BA73),
                           label: Text(type),
                           selected: selectedTransactionType == type,
                           onSelected: (selected) {
                             setModalState(() {
                               setState(() {
-                                selectedTransactionType =
-                                    selected ? type : 'All';
+                                selectedTransactionType = selected ? type : 'All';
                                 _filterTransactions(_searchController.text);
                               });
                             });
@@ -326,7 +401,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                   Navigator.pop(context);
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF2B3A55),
+                  backgroundColor: const Color(0xFF2B3A55),
                 ),
                 child: const Text(
                   'Reset All Filters',
@@ -411,8 +486,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
         builder: (context) => AddTransactionScreen(
           onAdd: (Transaction transaction) async {
             try {
-              final dataService = DataService();
-              await dataService.appendTransaction(transaction);
+              await _dataService.appendTransaction(transaction);
 
               setState(() {
                 transactions.add(transaction);
@@ -444,11 +518,146 @@ class _TransactionScreenState extends State<TransactionScreen> {
     );
   }
 
+  Future<void> _handleRefresh() async {
+    await _initializeData();
+  }
+
+  Future<void> _handleConnectAccount() async {
+    try {
+      final linkToken = await _plaidService.createLinkToken();
+      if (linkToken != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please use the dashboard to connect your account'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Color(0xFF2B3A55),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFFE5BA73)),
+        ),
+      );
+    }
+
+    // Show connection prompt if no Plaid connection and no local transactions
+    if (!_hasPlaidConnection && transactions.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF2B3A55),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Transactions',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.add_circle, color: Colors.white),
+                          onPressed: _handleAddTransaction,
+                          tooltip: 'Add Transaction',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh, color: Colors.white),
+                          onPressed: _handleRefresh,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 80,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'No Transactions Found',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2B3A55),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Connect your bank account to see transactions\nor add them manually',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: _handleConnectAccount,
+                              icon: const Icon(Icons.account_balance),
+                              label: const Text('Connect Account'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFE5BA73),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            ElevatedButton.icon(
+                              onPressed: _handleAddTransaction,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add Manually'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2B3A55),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -473,26 +682,46 @@ class _TransactionScreenState extends State<TransactionScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Transactions',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          const Text(
+                            'Transactions',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (_hasPlaidConnection) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'LIVE',
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       Row(
                         children: [
                           IconButton(
-                            icon:
-                                const Icon(Icons.download, color: Colors.white),
+                            icon: const Icon(Icons.download, color: Colors.white),
                             onPressed: _handleDownload,
                             tooltip: 'Download Transactions',
                           ),
                           const SizedBox(width: 8),
                           IconButton(
-                            icon: const Icon(Icons.add_circle,
-                                color: Colors.white),
+                            icon: const Icon(Icons.add_circle, color: Colors.white),
                             onPressed: _handleAddTransaction,
                             tooltip: 'Add Transaction',
                           ),
@@ -515,8 +744,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                         hintText: 'Search transactions...',
                         hintStyle: const TextStyle(color: Colors.white70),
                         border: InputBorder.none,
-                        prefixIcon:
-                            const Icon(Icons.search, color: Colors.white70),
+                        prefixIcon: const Icon(Icons.search, color: Colors.white70),
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.tune, color: Colors.white70),
                           onPressed: _showFilterMenu,
@@ -537,131 +765,166 @@ class _TransactionScreenState extends State<TransactionScreen> {
             _buildMonthSelector(),
             const SizedBox(height: 16),
             Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: filteredTransactions.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No transactions found',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 16,
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: EdgeInsets.zero,
-                        itemCount: groupedTransactions.length,
-                        itemBuilder: (context, index) {
-                          final date =
-                              groupedTransactions.keys.elementAt(index);
-                          final dayTransactions = groupedTransactions[date]!;
-                          final totalSpend = dayTransactions
-                              .where((t) => t.transactionType == 'Debit')
-                              .fold(0.0, (sum, t) => sum + t.amount);
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+              child: RefreshIndicator(
+                onRefresh: _handleRefresh,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: filteredTransactions.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      date,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF2B3A55),
-                                      ),
-                                    ),
-                                    Text(
-                                      '\$${totalSpend.toStringAsFixed(2)} total spend',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ],
+                              Icon(
+                                Icons.search_off,
+                                size: 60,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                transactions.isEmpty 
+                                    ? 'No transactions available'
+                                    : 'No transactions found for current filters',
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 16,
                                 ),
                               ),
-                              ...dayTransactions.map((transaction) => ListTile(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              TransactionDetailScreen(
-                                            transaction: transaction,
-                                            onDelete: transaction.isPersonal
-                                                ? () {
-                                                    setState(() {
-                                                      transactions
-                                                          .remove(transaction);
-                                                      _filterTransactions(
-                                                          _searchController
-                                                              .text);
-                                                    });
-                                                  }
-                                                : null,
+                              if (transactions.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: _resetFilters,
+                                  child: const Text('Clear Filters'),
+                                ),
+                              ],
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: EdgeInsets.zero,
+                          itemCount: groupedTransactions.length,
+                          itemBuilder: (context, index) {
+                            final date = groupedTransactions.keys.elementAt(index);
+                            final dayTransactions = groupedTransactions[date]!;
+                            final totalSpend = dayTransactions
+                                .where((t) => t.transactionType == 'Debit')
+                                .fold(0.0, (sum, t) => sum + t.amount);
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        date,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2B3A55),
+                                        ),
+                                      ),
+                                      if (totalSpend > 0)
+                                        Text(
+                                          '\$${totalSpend.toStringAsFixed(2)} total spend',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey,
                                           ),
                                         ),
-                                      );
-                                    },
-                                    leading: Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: _getCategoryColor(
-                                                transaction.category)
-                                            .withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
+                                    ],
+                                  ),
+                                ),
+                                ...dayTransactions.map((transaction) => ListTile(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => TransactionDetailScreen(
+                                              transaction: transaction,
+                                              onDelete: transaction.isPersonal
+                                                  ? () {
+                                                      setState(() {
+                                                        transactions.remove(transaction);
+                                                        _filterTransactions(_searchController.text);
+                                                      });
+                                                    }
+                                                  : null,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      leading: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: _getCategoryColor(transaction.category).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          getCategoryIcons()[transaction.category] ?? Icons.category,
+                                          color: _getCategoryColor(transaction.category),
+                                          size: 24,
+                                        ),
                                       ),
-                                      child: Icon(
-                                        getCategoryIcons()[
-                                                transaction.category] ??
-                                            Icons.category,
-                                        color: _getCategoryColor(
-                                            transaction.category),
-                                        size: 24,
+                                      title: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              transaction.description,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w500,
+                                                color: Color(0xFF2B3A55),
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (transaction.isPersonal)
+                                            Container(
+                                              margin: const EdgeInsets.only(left: 4),
+                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: Colors.blue.withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: const Text(
+                                                'MANUAL',
+                                                style: TextStyle(
+                                                  fontSize: 8,
+                                                  color: Colors.blue,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
-                                    ),
-                                    title: Text(
-                                      transaction.description,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF2B3A55),
+                                      subtitle: Text(
+                                        transaction.category,
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12,
+                                        ),
                                       ),
-                                    ),
-                                    subtitle: Text(
-                                      DateFormat('MMMM d')
-                                          .format(transaction.date),
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 12,
+                                      trailing: Text(
+                                        transaction.transactionType == 'Credit'
+                                            ? '+\$${transaction.amount.toStringAsFixed(2)}'
+                                            : '-\$${transaction.amount.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: transaction.transactionType == 'Credit'
+                                              ? Colors.green
+                                              : const Color(0xFF2B3A55),
+                                        ),
                                       ),
-                                    ),
-                                    trailing: Text(
-                                      transaction.transactionType == 'Credit'
-                                          ? '+\$${transaction.amount.toStringAsFixed(2)}'
-                                          : '-\$${transaction.amount.toStringAsFixed(2)}',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: transaction.transactionType ==
-                                                'Credit'
-                                            ? Colors.green
-                                            : const Color(0xFF2B3A55),
-                                      ),
-                                    ),
-                                  )),
-                            ],
-                          );
-                        },
-                      ),
+                                    )),
+                              ],
+                            );
+                          },
+                        ),
+                ),
               ),
             ),
           ],

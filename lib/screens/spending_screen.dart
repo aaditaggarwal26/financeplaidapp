@@ -72,7 +72,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
       
       if (monthlySpending.isNotEmpty) {
         selectedMonthIndex = monthlySpending.length - 1;
-        displayStartIndex = (monthlySpending.length > 9) ? monthlySpending.length - 9 : 0;
+        displayStartIndex = (monthlySpending.length > 6) ? monthlySpending.length - 6 : 0;
       }
 
       setState(() {
@@ -99,7 +99,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
       
       if (monthlySpending.isNotEmpty) {
         selectedMonthIndex = monthlySpending.length - 1;
-        displayStartIndex = (monthlySpending.length > 9) ? monthlySpending.length - 9 : 0;
+        displayStartIndex = (monthlySpending.length > 6) ? monthlySpending.length - 6 : 0;
       }
 
       setState(() {
@@ -201,7 +201,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
         shopping: shopping,
         healthcare: healthcare,
         insurance: insurance,
-        miscellaneous: miscellaneous,
+        miscellaneous: miscellaneous + subscriptions, // Add subscriptions to misc for now
         earnings: totalIncome,
       ));
     });
@@ -212,15 +212,15 @@ class _SpendingScreenState extends State<SpendingScreen> {
   }
 
   void _updateDisplayWindow() {
-    if (monthlySpending.length <= 9) {
+    if (monthlySpending.length <= 6) {
       displayStartIndex = 0;
       return;
     }
 
     if (selectedMonthIndex < displayStartIndex) {
       displayStartIndex = selectedMonthIndex;
-    } else if (selectedMonthIndex >= displayStartIndex + 9) {
-      displayStartIndex = selectedMonthIndex - 8;
+    } else if (selectedMonthIndex >= displayStartIndex + 6) {
+      displayStartIndex = selectedMonthIndex - 5;
     }
   }
 
@@ -431,6 +431,12 @@ class _SpendingScreenState extends State<SpendingScreen> {
     final currentMonth = monthlySpending[selectedMonthIndex];
     final breakdown = _getEnhancedCategoryBreakdown(currentMonth);
     final totalSpend = breakdown.values.fold(0.0, (sum, value) => sum + value);
+    
+    // Calculate max Y for chart based on data
+    final maxIncomeOrSpend = monthlySpending
+        .map((s) => [s.totalSpent, s.income ?? 0])
+        .expand((x) => x)
+        .fold(0.0, (a, b) => a > b ? a : b);
 
     return Scaffold(
       backgroundColor: const Color(0xFF2B3A55),
@@ -566,9 +572,9 @@ class _SpendingScreenState extends State<SpendingScreen> {
                   child: ListView(
                     padding: EdgeInsets.zero,
                     children: [
-                      // Spending and Income Chart
+                      // Spending and Income Chart - Fixed size and layout
                       Container(
-                        height: 200,
+                        height: 280,
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           children: [
@@ -585,10 +591,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                               child: BarChart(
                                 BarChartData(
                                   alignment: BarChartAlignment.spaceAround,
-                                  maxY: monthlySpending
-                                          .map((s) => s.income ?? 0)
-                                          .fold(0.0, (a, b) => a > b ? a : b) *
-                                      1.2,
+                                  maxY: maxIncomeOrSpend * 1.2,
                                   barTouchData: BarTouchData(
                                     touchTooltipData: BarTouchTooltipData(
                                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
@@ -608,10 +611,11 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                     leftTitles: AxisTitles(
                                       sideTitles: SideTitles(
                                         showTitles: true,
-                                        reservedSize: 40,
+                                        reservedSize: 50,
                                         getTitlesWidget: (value, meta) {
+                                          if (value == 0) return const Text('');
                                           return Text(
-                                            '\$${(value / 1000).toStringAsFixed(1)}k',
+                                            '\$${(value / 1000).toStringAsFixed(0)}k',
                                             style: const TextStyle(
                                               fontSize: 10,
                                               color: Colors.grey,
@@ -645,7 +649,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                   gridData: FlGridData(
                                     show: true,
                                     drawVerticalLine: false,
-                                    horizontalInterval: 1000,
+                                    horizontalInterval: maxIncomeOrSpend / 5,
                                     getDrawingHorizontalLine: (value) {
                                       return FlLine(
                                         color: Colors.grey.withOpacity(0.2),
@@ -658,11 +662,11 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                       .entries
                                       .where((entry) =>
                                           entry.key >= displayStartIndex &&
-                                          entry.key < displayStartIndex + 9 &&
+                                          entry.key < displayStartIndex + 6 &&
                                           entry.key < monthlySpending.length)
                                       .map((entry) {
-                                    final double width = 8;
-                                    final double gap = 4;
+                                    final double width = 12;
+                                    final double gap = 6;
                                     return BarChartGroupData(
                                       x: entry.key - displayStartIndex,
                                       groupVertically: false,
@@ -673,7 +677,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                               ? const Color(0xFF2B3A55)
                                               : const Color(0xFF2B3A55).withOpacity(0.3),
                                           width: width,
-                                          borderRadius: BorderRadius.circular(2),
+                                          borderRadius: BorderRadius.circular(4),
                                         ),
                                         BarChartRodData(
                                           toY: entry.value.income ?? 0,
@@ -681,7 +685,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                               ? const Color(0xFFE5BA73)
                                               : const Color(0xFFE5BA73).withOpacity(0.3),
                                           width: width,
-                                          borderRadius: BorderRadius.circular(2),
+                                          borderRadius: BorderRadius.circular(4),
                                         ),
                                       ],
                                       barsSpace: gap,
@@ -734,12 +738,12 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                           .map((e) => PieChartSectionData(
                                                 value: e.value,
                                                 color: _getCategoryColor(e.key),
-                                                radius: 20,
+                                                radius: 25,
                                                 showTitle: false,
                                               ))
                                           .toList(),
                                       sectionsSpace: 2,
-                                      centerSpaceRadius: 100,
+                                      centerSpaceRadius: 80,
                                     ),
                                   ),
                                   Column(
@@ -756,7 +760,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                       Text(
                                         NumberFormat.currency(symbol: '\$').format(totalSpend),
                                         style: const TextStyle(
-                                          fontSize: 24,
+                                          fontSize: 20,
                                           fontWeight: FontWeight.bold,
                                           color: Color(0xFF2B3A55),
                                         ),
@@ -846,6 +850,9 @@ class _SpendingScreenState extends State<SpendingScreen> {
       final subscriptionsTotal = monthTransactions.fold(0.0, (sum, t) => sum + t.amount);
       if (subscriptionsTotal > 0) {
         breakdown['Subscriptions'] = subscriptionsTotal;
+        // Remove subscriptions from miscellaneous
+        breakdown['Miscellaneous'] = (breakdown['Miscellaneous'] ?? 0) - subscriptionsTotal;
+        if (breakdown['Miscellaneous']! < 0) breakdown['Miscellaneous'] = 0;
       }
     }
     
