@@ -1,4 +1,3 @@
-// This screen displays spending and income data with visualizations like bar and pie charts.
 import 'package:finsight/exports/spending_export.dart';
 import 'package:finsight/models/monthly_spending.dart';
 import 'package:finsight/models/transaction.dart';
@@ -9,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
-// Main widget for the Spending screen, showing monthly financial data.
 class SpendingScreen extends StatefulWidget {
   const SpendingScreen({Key? key}) : super(key: key);
 
@@ -17,112 +15,108 @@ class SpendingScreen extends StatefulWidget {
   State<SpendingScreen> createState() => _SpendingScreenState();
 }
 
-// State class managing data loading, UI updates, and user interactions.
 class _SpendingScreenState extends State<SpendingScreen> {
-  // Toggle to include bills in the spending breakdown.
   bool includeBills = true;
-  // List of monthly spending data.
   List<MonthlySpending> monthlySpending = [];
-  // Flag to show loading state.
+  List<Transaction> allTransactions = [];
   bool isLoading = true;
-  // Index of the currently selected month.
   int selectedMonthIndex = 0;
-  // Starting index for the display window of months in the bar chart.
   int displayStartIndex = 0;
-  // Flag to indicate if Plaid data is being used instead of static data.
-  bool _usingPlaidData = false;
-  // Service for fetching Plaid transactions.
+  bool _usePlaidData = false;
   final PlaidService _plaidService = PlaidService();
-  // Service for handling static data.
   final DataService _dataService = DataService();
 
   @override
   void initState() {
     super.initState();
-    // Load static data when the screen initializes.
-    loadStaticData();
+    _initializeData();
   }
 
-  // Navigate to the Sankey diagram screen for the selected month.
-  void _showSankeyDiagram() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => SankeyDiagramScreen(
-          monthlySpending: monthlySpending[selectedMonthIndex],
-        ),
-      ),
-    );
-  }
-
-  // Load static spending data from the DataService.
-  Future<void> loadStaticData() async {
+  Future<void> _initializeData() async {
     setState(() {
       isLoading = true;
-      _usingPlaidData = false;
-    });
-
-    final spendingService = DataService();
-    final spending = await spendingService.getMonthlySpending();
-    
-    // Update state only if the widget is still mounted.
-    if (mounted) {
-      setState(() {
-        monthlySpending = spending;
-        selectedMonthIndex = spending.length - 1;
-        displayStartIndex = (spending.length > 9) ? spending.length - 9 : 0;
-        isLoading = false;
-      });
-    }
-  }
-
-  // Load transaction data from Plaid, falling back to static data if necessary.
-  Future<void> loadPlaidData() async {
-    if (!mounted) return;
-    
-    setState(() {
-      isLoading = true;
-      _usingPlaidData = true;
     });
 
     try {
-      // Check if there's an active Plaid connection.
-      final hasConnection = await _plaidService.hasPlaidConnection();
-      if (!hasConnection) {
-        await loadStaticData();
-        return;
+      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
+      
+      if (hasPlaidConnection) {
+        await _loadPlaidData();
+      } else {
+        await _loadStaticData();
       }
+    } catch (e) {
+      print('Error initializing spending data: $e');
+      await _loadStaticData();
+    }
 
-      // Fetch transactions for the past year.
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+  Future<void> _loadPlaidData() async {
+    try {
+      // Fetch transactions for the past year
       final now = DateTime.now();
       final oneYearAgo = DateTime(now.year - 1, now.month, now.day);
       
-      final transactions = await _plaidService.fetchTransactions(
+      allTransactions = await _plaidService.fetchTransactions(
         context: context,
         startDate: oneYearAgo,
         endDate: now,
       );
 
-      // Convert transactions into monthly spending data.
-      final processedData = processTransactions(transactions);
+      // Process transactions into monthly spending data
+      monthlySpending = _processTransactionsIntoMonthlySpending(allTransactions);
       
-      if (mounted) {
-        setState(() {
-          monthlySpending = processedData;
-          selectedMonthIndex = processedData.length - 1;
-          displayStartIndex = (processedData.length > 9) ? processedData.length - 9 : 0;
-          isLoading = false;
-        });
+      if (monthlySpending.isNotEmpty) {
+        selectedMonthIndex = monthlySpending.length - 1;
+        displayStartIndex = (monthlySpending.length > 9) ? monthlySpending.length - 9 : 0;
       }
+
+      setState(() {
+        _usePlaidData = true;
+      });
     } catch (e) {
-      print('Error loading Plaid data: $e');
-      // Fall back to static data if Plaid fails.
-      await loadStaticData();
+      print('Error loading Plaid spending data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load spending data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      await _loadStaticData();
     }
   }
 
-  // Process raw transactions into monthly spending data by category.
-  List<MonthlySpending> processTransactions(List<Transaction> transactions) {
-    // Group transactions by month (YYYY-MM format).
+  Future<void> _loadStaticData() async {
+    try {
+      monthlySpending = await _dataService.getMonthlySpending();
+      allTransactions = await _dataService.getTransactions();
+      
+      if (monthlySpending.isNotEmpty) {
+        selectedMonthIndex = monthlySpending.length - 1;
+        displayStartIndex = (monthlySpending.length > 9) ? monthlySpending.length - 9 : 0;
+      }
+
+      setState(() {
+        _usePlaidData = false;
+      });
+    } catch (e) {
+      print('Error loading static data: $e');
+      setState(() {
+        monthlySpending = [];
+        allTransactions = [];
+        _usePlaidData = false;
+      });
+    }
+  }
+
+  List<MonthlySpending> _processTransactionsIntoMonthlySpending(List<Transaction> transactions) {
+    // Group transactions by month
     final Map<String, List<Transaction>> transactionsByMonth = {};
     
     for (final transaction in transactions) {
@@ -133,55 +127,90 @@ class _SpendingScreenState extends State<SpendingScreen> {
       transactionsByMonth[monthKey]!.add(transaction);
     }
 
-    // Create MonthlySpending objects for each month.
+    // Convert to MonthlySpending objects
     final List<MonthlySpending> result = [];
     
     transactionsByMonth.forEach((key, txList) {
       final date = DateFormat('yyyy-MM').parse(key);
       
-      // Track spending by category and total income/expenses.
-      final Map<String, double> categoryBreakdown = {};
-      double totalExpenses = 0;
+      // Calculate spending by category
+      double groceries = 0;
+      double utilities = 0;
+      double rent = 0;
+      double transportation = 0;
+      double entertainment = 0;
+      double diningOut = 0;
+      double shopping = 0;
+      double healthcare = 0;
+      double insurance = 0;
+      double miscellaneous = 0;
+      double subscriptions = 0;
       double totalIncome = 0;
-      
+
       for (final tx in txList) {
-        if (tx.transactionType.toLowerCase() == 'expense' || 
-            tx.amount > 0) { // Positive amounts are treated as expenses.
-          if (!categoryBreakdown.containsKey(tx.category)) {
-            categoryBreakdown[tx.category] = 0;
-          }
-          categoryBreakdown[tx.category] = categoryBreakdown[tx.category]! + tx.amount;
-          totalExpenses += tx.amount;
+        if (tx.transactionType.toLowerCase() == 'credit') {
+          totalIncome += tx.amount;
         } else {
-          totalIncome += tx.amount.abs();
+          // Categorize spending
+          switch (tx.category) {
+            case 'Groceries':
+              groceries += tx.amount;
+              break;
+            case 'Utilities':
+              utilities += tx.amount;
+              break;
+            case 'Rent':
+              rent += tx.amount;
+              break;
+            case 'Transportation':
+              transportation += tx.amount;
+              break;
+            case 'Entertainment':
+              entertainment += tx.amount;
+              break;
+            case 'Dining Out':
+              diningOut += tx.amount;
+              break;
+            case 'Shopping':
+              shopping += tx.amount;
+              break;
+            case 'Healthcare':
+              healthcare += tx.amount;
+              break;
+            case 'Insurance':
+              insurance += tx.amount;
+              break;
+            case 'Subscriptions':
+              subscriptions += tx.amount;
+              break;
+            default:
+              miscellaneous += tx.amount;
+              break;
+          }
         }
       }
 
-      // Create a MonthlySpending object with categorized data.
-      final monthlySpend = MonthlySpending(
+      result.add(MonthlySpending(
         date: date,
-        groceries: categoryBreakdown['Groceries'] ?? 0,
-        utilities: categoryBreakdown['Utilities'] ?? 0,
-        rent: categoryBreakdown['Rent'] ?? 0,
-        transportation: categoryBreakdown['Transportation'] ?? 0,
-        entertainment: categoryBreakdown['Entertainment'] ?? 0,
-        diningOut: categoryBreakdown['Dining Out'] ?? 0,
-        shopping: categoryBreakdown['Shopping'] ?? 0,
-        healthcare: categoryBreakdown['Healthcare'] ?? 0,
-        insurance: categoryBreakdown['Insurance'] ?? 0,
-        miscellaneous: categoryBreakdown['Miscellaneous'] ?? 0,
+        groceries: groceries,
+        utilities: utilities,
+        rent: rent,
+        transportation: transportation,
+        entertainment: entertainment,
+        diningOut: diningOut,
+        shopping: shopping,
+        healthcare: healthcare,
+        insurance: insurance,
+        miscellaneous: miscellaneous,
         earnings: totalIncome,
-      );
-      
-      result.add(monthlySpend);
+      ));
     });
 
-    // Sort months chronologically.
+    // Sort chronologically
     result.sort((a, b) => a.date.compareTo(b.date));
     return result;
   }
 
-  // Adjust the display window for the bar chart to keep the selected month in view.
   void _updateDisplayWindow() {
     if (monthlySpending.length <= 9) {
       displayStartIndex = 0;
@@ -195,25 +224,138 @@ class _SpendingScreenState extends State<SpendingScreen> {
     }
   }
 
-  // Toggle between Plaid and static data on refresh.
   Future<void> _handleRefresh() async {
-    if (_usingPlaidData) {
-      await loadStaticData();
-    } else {
-      await loadPlaidData();
+    await _initializeData();
+  }
+
+  void _showSankeyDiagram() {
+    if (monthlySpending.isNotEmpty && selectedMonthIndex < monthlySpending.length) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => SankeyDiagramScreen(
+            monthlySpending: monthlySpending[selectedMonthIndex],
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleConnectAccount() async {
+    try {
+      final linkToken = await _plaidService.createLinkToken();
+      if (linkToken != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please use the dashboard to connect your account'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Show a loading indicator while data is being fetched.
     if (isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Color(0xFF2B3A55),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFFE5BA73)),
+        ),
       );
     }
 
-    // Display a message if no spending data is available.
+    if (!_usePlaidData && monthlySpending.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF2B3A55),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Spending',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.white),
+                      onPressed: _handleRefresh,
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.account_balance_wallet_outlined,
+                          size: 80,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'No Bank Account Connected',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2B3A55),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Connect your bank account to see\nreal spending data and insights',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        ElevatedButton.icon(
+                          onPressed: _handleConnectAccount,
+                          icon: const Icon(Icons.add_circle_outline),
+                          label: const Text('Connect Account'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE5BA73),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (monthlySpending.isEmpty) {
       return Scaffold(
         backgroundColor: const Color(0xFF2B3A55),
@@ -249,7 +391,33 @@ class _SpendingScreenState extends State<SpendingScreen> {
                       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                     ),
                     child: const Center(
-                      child: Text('No spending data available.'),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.receipt_long_outlined,
+                            size: 80,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'No Spending Data Available',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF2B3A55),
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Make some transactions to see your spending analysis',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -260,12 +428,10 @@ class _SpendingScreenState extends State<SpendingScreen> {
       );
     }
 
-    // Get data for the currently selected month.
     final currentMonth = monthlySpending[selectedMonthIndex];
-    final breakdown = currentMonth.categoryBreakdown;
-    final totalSpend = currentMonth.totalSpent;
+    final breakdown = _getEnhancedCategoryBreakdown(currentMonth);
+    final totalSpend = breakdown.values.fold(0.0, (sum, value) => sum + value);
 
-    // Main UI with bar chart, pie chart, and category breakdown.
     return Scaffold(
       backgroundColor: const Color(0xFF2B3A55),
       body: SafeArea(
@@ -276,24 +442,43 @@ class _SpendingScreenState extends State<SpendingScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Spending',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  Row(
+                    children: [
+                      const Text(
+                        'Spending',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      if (_usePlaidData) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Colors.green,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   Row(
                     children: [
-                      // Button to view the Sankey diagram.
                       IconButton(
-                        icon: const Icon(Icons.waterfall_chart,
-                            color: Colors.white),
+                        icon: const Icon(Icons.waterfall_chart, color: Colors.white),
                         tooltip: 'Money Flow',
-                        onPressed: () => _showSankeyDiagram(),
+                        onPressed: _showSankeyDiagram,
                       ),
-                      // Button to export a spending report.
                       IconButton(
                         icon: const Icon(Icons.download, color: Colors.white),
                         onPressed: () async {
@@ -304,16 +489,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                    content:
-                                        Text('Report generated successfully')),
+                                    content: Text('Report generated successfully')),
                               );
                             }
                           } catch (e) {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                    content: Text(
-                                        'Error generating report: ${e.toString()}')),
+                                    content: Text('Error generating report: ${e.toString()}')),
                               );
                             }
                           }
@@ -324,12 +507,10 @@ class _SpendingScreenState extends State<SpendingScreen> {
                 ],
               ),
             ),
-            // Month selector with navigation buttons.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -337,8 +518,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.calendar_today,
-                        color: Colors.white, size: 20),
+                    const Icon(Icons.calendar_today, color: Colors.white, size: 20),
                     const SizedBox(width: 8),
                     Text(
                       DateFormat('MMMM yyyy').format(currentMonth.date),
@@ -349,8 +529,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                     ),
                     const SizedBox(width: 8),
                     IconButton(
-                      icon: const Icon(Icons.chevron_left,
-                          color: Colors.white, size: 20),
+                      icon: const Icon(Icons.chevron_left, color: Colors.white, size: 20),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       onPressed: selectedMonthIndex > 0
@@ -361,8 +540,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                           : null,
                     ),
                     IconButton(
-                      icon: const Icon(Icons.chevron_right,
-                          color: Colors.white, size: 20),
+                      icon: const Icon(Icons.chevron_right, color: Colors.white, size: 20),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       onPressed: selectedMonthIndex < monthlySpending.length - 1
@@ -388,21 +566,18 @@ class _SpendingScreenState extends State<SpendingScreen> {
                   child: ListView(
                     padding: EdgeInsets.zero,
                     children: [
-                      // Bar chart showing spending and income over months.
+                      // Spending and Income Chart
                       Container(
-                        height: 200, // Increased height to accommodate legend
+                        height: 200,
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           children: [
-                            // Legend for the bar chart.
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                _buildLegendItem(
-                                    'Spending', const Color(0xFF2B3A55)),
+                                _buildLegendItem('Spending', const Color(0xFF2B3A55)),
                                 const SizedBox(width: 24),
-                                _buildLegendItem(
-                                    'Income', const Color(0xFFE5BA73)),
+                                _buildLegendItem('Income', const Color(0xFFE5BA73)),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -412,25 +587,16 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                   alignment: BarChartAlignment.spaceAround,
                                   maxY: monthlySpending
                                           .map((s) => s.income ?? 0)
-                                          .reduce((a, b) => a > b ? a : b) *
+                                          .fold(0.0, (a, b) => a > b ? a : b) *
                                       1.2,
                                   barTouchData: BarTouchData(
                                     touchTooltipData: BarTouchTooltipData(
-                                      getTooltipItem:
-                                          (group, groupIndex, rod, rodIndex) {
-                                        String label =
-                                            rod.color == const Color(0xFF2B3A55)
-                                                ? 'Spent'
-                                                : 'Earned';
-                                        double value =
-                                            monthlySpending[group.x.toInt()]
-                                                .totalSpent;
-                                        if (rod.color ==
-                                            const Color(0xFFE5BA73)) {
-                                          value = monthlySpending[group.x.toInt()]
-                                                  .income ??
-                                              0;
-                                        }
+                                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                                        final monthData = monthlySpending[group.x.toInt() + displayStartIndex];
+                                        String label = rod.color == const Color(0xFF2B3A55) ? 'Spent' : 'Earned';
+                                        double value = rod.color == const Color(0xFF2B3A55) 
+                                            ? monthData.totalSpent 
+                                            : monthData.income ?? 0;
                                         return BarTooltipItem(
                                           '$label:\n${NumberFormat.currency(symbol: '\$').format(value)}',
                                           const TextStyle(color: Colors.black),
@@ -458,16 +624,12 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                       sideTitles: SideTitles(
                                         showTitles: true,
                                         getTitlesWidget: (value, meta) {
-                                          final actualIndex =
-                                              value.toInt() + displayStartIndex;
-                                          if (actualIndex >=
-                                              monthlySpending.length) {
+                                          final actualIndex = value.toInt() + displayStartIndex;
+                                          if (actualIndex >= monthlySpending.length) {
                                             return const SizedBox.shrink();
                                           }
                                           return Text(
-                                            DateFormat('MMM').format(
-                                                monthlySpending[actualIndex]
-                                                    .date),
+                                            DateFormat('MMM').format(monthlySpending[actualIndex].date),
                                             style: const TextStyle(
                                               fontSize: 10,
                                               color: Colors.grey,
@@ -509,8 +671,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                           toY: entry.value.totalSpent,
                                           color: entry.key == selectedMonthIndex
                                               ? const Color(0xFF2B3A55)
-                                              : const Color(0xFF2B3A55)
-                                                  .withOpacity(0.3),
+                                              : const Color(0xFF2B3A55).withOpacity(0.3),
                                           width: width,
                                           borderRadius: BorderRadius.circular(2),
                                         ),
@@ -518,8 +679,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                           toY: entry.value.income ?? 0,
                                           color: entry.key == selectedMonthIndex
                                               ? const Color(0xFFE5BA73)
-                                              : const Color(0xFFE5BA73)
-                                                  .withOpacity(0.3),
+                                              : const Color(0xFFE5BA73).withOpacity(0.3),
                                           width: width,
                                           borderRadius: BorderRadius.circular(2),
                                         ),
@@ -533,16 +693,16 @@ class _SpendingScreenState extends State<SpendingScreen> {
                           ],
                         ),
                       ),
-                      // Category breakdown with a pie chart and list.
+                      // Category Breakdown
                       Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Row(
+                            Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
+                                const Text(
                                   'BREAKDOWN',
                                   style: TextStyle(
                                     fontSize: 12,
@@ -551,18 +711,26 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                     letterSpacing: 1.2,
                                   ),
                                 ),
+                                Text(
+                                  'Total: ${NumberFormat.currency(symbol: '\$').format(totalSpend)}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF2B3A55),
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 16),
                             SizedBox(
                               height: 240,
-                              child: Stack(
+                              child: totalSpend > 0 ? Stack(
                                 alignment: Alignment.center,
                                 children: [
-                                  // Pie chart showing spending by category.
                                   PieChart(
                                     PieChartData(
                                       sections: breakdown.entries
+                                          .where((e) => e.value > 0)
                                           .map((e) => PieChartSectionData(
                                                 value: e.value,
                                                 color: _getCategoryColor(e.key),
@@ -586,8 +754,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        NumberFormat.currency(symbol: '\$')
-                                            .format(totalSpend),
+                                        NumberFormat.currency(symbol: '\$').format(totalSpend),
                                         style: const TextStyle(
                                           fontSize: 24,
                                           fontWeight: FontWeight.bold,
@@ -597,13 +764,21 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                     ],
                                   ),
                                 ],
+                              ) : const Center(
+                                child: Text(
+                                  'No spending data for this month',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 16,
+                                  ),
+                                ),
                               ),
                             ),
-                            // List of categories with amounts and percentages.
+                            // Category List
                             ...breakdown.entries
+                                .where((e) => e.value > 0)
                                 .where((e) => !includeBills
-                                    ? !['Utilities', 'Rent', 'Insurance']
-                                        .contains(e.key)
+                                    ? !['Utilities', 'Rent', 'Insurance'].contains(e.key)
                                     : true)
                                 .map(
                                   (entry) => ListTile(
@@ -611,8 +786,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                     leading: Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: _getCategoryColor(entry.key)
-                                            .withOpacity(0.1),
+                                        color: _getCategoryColor(entry.key).withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Icon(
@@ -635,8 +809,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
                                       ),
                                     ),
                                     trailing: Text(
-                                      NumberFormat.currency(symbol: '\$')
-                                          .format(entry.value),
+                                      NumberFormat.currency(symbol: '\$').format(entry.value),
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         color: Color(0xFF2B3A55),
@@ -658,7 +831,27 @@ class _SpendingScreenState extends State<SpendingScreen> {
     );
   }
 
-  // Builds a legend item for the bar chart.
+  Map<String, double> _getEnhancedCategoryBreakdown(MonthlySpending monthlySpending) {
+    final breakdown = Map<String, double>.from(monthlySpending.categoryBreakdown);
+    
+    // If we have Plaid data, include subscriptions separately
+    if (_usePlaidData) {
+      // Calculate subscriptions from recent transactions for this month
+      final monthTransactions = allTransactions.where((t) {
+        return t.date.year == monthlySpending.date.year &&
+               t.date.month == monthlySpending.date.month &&
+               t.category == 'Subscriptions';
+      }).toList();
+      
+      final subscriptionsTotal = monthTransactions.fold(0.0, (sum, t) => sum + t.amount);
+      if (subscriptionsTotal > 0) {
+        breakdown['Subscriptions'] = subscriptionsTotal;
+      }
+    }
+    
+    return breakdown;
+  }
+
   Widget _buildLegendItem(String label, Color color) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -683,7 +876,6 @@ class _SpendingScreenState extends State<SpendingScreen> {
     );
   }
 
-  // Returns a color for each spending category.
   Color _getCategoryColor(String category) {
     final colors = {
       'Groceries': const Color(0xFFE5BA73),
@@ -695,12 +887,12 @@ class _SpendingScreenState extends State<SpendingScreen> {
       'Shopping': const Color(0xFF9B59B6),
       'Healthcare': const Color(0xFF1ABC9C),
       'Insurance': const Color(0xFF34495E),
+      'Subscriptions': const Color(0xFFFF6B6B),
       'Miscellaneous': const Color(0xFF95A5A6),
     };
     return colors[category] ?? Colors.grey;
   }
 
-  // Returns an icon for each spending category.
   IconData _getCategoryIcon(String category) {
     final icons = {
       'Groceries': Icons.shopping_cart,
@@ -712,6 +904,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
       'Shopping': Icons.shopping_bag,
       'Healthcare': Icons.local_hospital,
       'Insurance': Icons.security,
+      'Subscriptions': Icons.subscriptions,
       'Miscellaneous': Icons.more_horiz,
     };
     return icons[category] ?? Icons.category;

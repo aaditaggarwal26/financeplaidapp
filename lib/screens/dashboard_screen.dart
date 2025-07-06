@@ -13,7 +13,6 @@ import 'package:plaid_flutter/plaid_flutter.dart';
 import 'package:finsight/screens/spending_screen.dart';
 import 'dart:async';
 
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -27,9 +26,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   final DataService _dataService = DataService();
   final PlaidService _plaidService = PlaidService();
   final User? _user = FirebaseAuth.instance.currentUser;
+  
   late Future<List<AccountBalance>> _balancesFuture;
   late Future<List<Transaction>> _transactionsFuture;
   late Future<List<Map<String, dynamic>>> _plaidAccountsFuture;
+  
   int _currentPage = 0;
   static bool _hasLoadedData = false;
   bool _showBalances = true;
@@ -163,14 +164,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _initPlaidListeners() {
-    // Set up Plaid link success listener
     _successSubscription = PlaidLink.onSuccess.listen((LinkSuccess success) async {
       print('Plaid success: ${success.publicToken}');
       
-      // Exchange public token for access token
+      setState(() {
+        _isLoading = true;
+      });
+      
       final result = await _plaidService.exchangePublicToken(success.publicToken);
       
-      // Make sure the widget is still mounted before updating state
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -196,7 +198,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     });
 
-    // Set up Plaid link exit listener
     _exitSubscription = PlaidLink.onExit.listen((LinkExit exit) {
       if (exit.error != null) {
         print('Plaid error: ${exit.error?.displayMessage}');
@@ -313,7 +314,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       });
     } catch (e) {
       print('Error loading Plaid data: $e');
-      // Fallback to static data if Plaid fails
       if (mounted) {
         _loadData();
       }
@@ -338,7 +338,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   void _refreshData() {
     if (_usePlaidData) {
-      _loadData(); 
+      _loadPlaidData(); 
     } else {
       _loadData();
     }
@@ -349,7 +349,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     _pageController.dispose();
     _categoryNameController.dispose();
     _budgetAmountController.dispose();
-    // Cancel Plaid subscriptions
     _successSubscription?.cancel();
     _exitSubscription?.cancel();
     super.dispose();
@@ -415,7 +414,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            'Premium',
+                            _usePlaidData ? 'Live Data' : 'Demo Mode',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.9),
                               fontSize: 11,
@@ -558,7 +557,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _showAddMoneyDialog() {
     final TextEditingController amountController = TextEditingController();
     
-    // Get accounts for dropdown if using Plaid
     List<String> accounts = [];
     if (_usePlaidData && _plaidAccounts.isNotEmpty) {
       accounts = _plaidAccounts
@@ -641,7 +639,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     final TextEditingController recipientController = TextEditingController();
     final TextEditingController amountController = TextEditingController();
     
-    // Get accounts for dropdown if using Plaid
     List<String> accounts = [];
     if (_usePlaidData && _plaidAccounts.isNotEmpty) {
       accounts = _plaidAccounts
@@ -725,34 +722,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _showAnalyticsDialog() {
-    if (_usePlaidData) {
-      // Navigate to analytics with real data
-      Navigator.pushNamed(context, '/analytics');
-    } else {
-      // Show prompt to connect account for better analytics
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Connect for Better Analytics'),
-          content: const Text('Connect your accounts with Plaid to get personalized analytics based on your real financial data.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Later'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _handleAddAccount();
-              },
-              child: const Text('Connect Now'),
-            ),
-          ],
-        ),
-      );
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SpendingScreen()),
+    );
   }
 
   Widget _buildFinancialWellnessScore() {
@@ -1298,165 +1271,165 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildCashFlowLegendItem({
-  required String label,
-  required double amount,
-  required Color color,
-  double? percentage,
-}) {
-  return Row(
-    children: [
-      Container(
-        width: 14,
-        height: 14,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
+    required String label,
+    required double amount,
+    required Color color,
+    double? percentage,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
         ),
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    '\$${amount.toStringAsFixed(0)}'.fixInterpolation(),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (percentage != null) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    '(${percentage.toStringAsFixed(0)}%)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
-}
-
-  Widget _buildInsights() {
-  return FutureBuilder<List<FinancialInsight>>(
-    future: _fetchAIInsights(),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState != ConnectionState.done) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      if (snapshot.hasError) {
-        return const Center(child: Text('Error loading insights'));
-      }
-      final insights = snapshot.data ?? [];
-      return Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.shade200),
-        ),
-        color: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        const SizedBox(width: 8),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Row(
                 children: [
-                  Icon(
-                    Icons.lightbulb_outline,
-                    color: Color(0xFFE5BA73),
-                    size: 22,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'Smart Insights',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2B3A55),
+                  Flexible(
+                    child: Text(
+                      '\$${amount.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              ListView.builder(
-                physics: const NeverScrollableScrollPhysics(),
-                shrinkWrap: true,
-                itemCount: insights.length,
-                itemBuilder: (context, index) {
-                  final insight = insights[index];
-                  final isLast = index == insights.length - 1;
-                  return Container(
-                    margin: EdgeInsets.only(bottom: isLast ? 0 : 4),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: insight.actionColor.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: insight.actionColor.withOpacity(0.2),
+                  if (percentage != null) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      '(${percentage.toStringAsFixed(0)}%)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              insight.icon,
-                              color: insight.actionColor,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                insight.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          insight.description,
-                          style: TextStyle(
-                            color: Colors.grey[700],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                  ],
+                ],
               ),
             ],
           ),
         ),
-      );
-    },
-  );
-}
+      ],
+    );
+  }
+
+  Widget _buildInsights() {
+    return FutureBuilder<List<FinancialInsight>>(
+      future: _fetchAIInsights(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return const Center(child: Text('Error loading insights'));
+        }
+        final insights = snapshot.data ?? [];
+        return Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.lightbulb_outline,
+                      color: Color(0xFFE5BA73),
+                      size: 22,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Smart Insights',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2B3A55),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                ListView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  itemCount: insights.length,
+                  itemBuilder: (context, index) {
+                    final insight = insights[index];
+                    final isLast = index == insights.length - 1;
+                    return Container(
+                      margin: EdgeInsets.only(bottom: isLast ? 0 : 4),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: insight.actionColor.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: insight.actionColor.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                insight.icon,
+                                color: insight.actionColor,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  insight.title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            insight.description,
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   Future<List<FinancialInsight>> _fetchAIInsights() async {
     await Future.delayed(const Duration(seconds: 1));
@@ -1477,7 +1450,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       FinancialInsight(
         title: 'Subscription Review',
-        description: 'You have unused subscriptions costing 30/month.',
+        description: 'You have unused subscriptions costing \$30/month.',
         action: 'Review',
         actionColor: Colors.blue,
         icon: Icons.subscriptions,
@@ -1703,17 +1676,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
       ],
     );
-  }
-
-  Future<int?> _getPlaidCreditScore() async {
-    if (_usePlaidData && _plaidAccounts.isNotEmpty) {
-      try {
-        return 724;
-      } catch (e) {
-        print('Error getting credit score: $e');
-      }
-    }
-    return null;
   }
 
   Widget _buildCreditScoreCard() {
@@ -2013,20 +1975,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  String _getFormattedValue(String rawValue, dynamic latestBalance) {
-    // This checks if it contains unprocessed string interpolation
-    if (rawValue.contains(r'${') && rawValue.contains('}')) {
-      if (rawValue.contains('latestBalance.checking')) {
-        return '\$${latestBalance.checking.toStringAsFixed(2)}';
-      } else if (rawValue.contains('creditCardBalance')) {
-        return '-\$${latestBalance.creditCardBalance.abs().toStringAsFixed(2)}';
-      } else if (rawValue.contains('checking + latestBalance.creditCardBalance')) {
-        return '\$${(latestBalance.checking + latestBalance.creditCardBalance).toStringAsFixed(2)}';
-      } else if (rawValue.contains('investmentAccount')) {
-        return '\$${latestBalance.investmentAccount.toStringAsFixed(2)}';
+  Future<int?> _getPlaidCreditScore() async {
+    if (_usePlaidData && _plaidAccounts.isNotEmpty) {
+      try {
+        return 724;
+      } catch (e) {
+        print('Error getting credit score: $e');
       }
     }
-    return rawValue;
+    return null;
   }
 
   Widget _buildAccountItemCard(
@@ -2038,7 +1995,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     bool showPlaceholder = false,
     required AccountBalance latestBalance,
   }) {
-    final displayAmount = _showBalances ? _getFormattedValue(amount, latestBalance) : '••••••';
+    final displayAmount = _showBalances ? amount : '••••••';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -2142,7 +2099,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildExpandedSection(String title) {
     if (_usePlaidData && (title == 'Checking' || title == 'Card Balance' || title == 'Investments')) {
-      // Use Plaid data for checking and credit cards
       return _buildPlaidExpandedSection(title);
     }
     
@@ -2228,7 +2184,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       );
     }
 
-    // Filter accounts based on title
     List<Map<String, dynamic>> filteredAccounts = [];
     if (title == 'Checking') {
       filteredAccounts = _plaidAccounts.where((account) => 
@@ -2262,13 +2217,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (title == 'Card Balance') {
       return Column(
         children: filteredAccounts.map((account) {
-          // Create a synthetic credit card for UI display
           final card = CreditCard(
             name: account['name'] ?? 'Credit Card',
             lastFour: account['mask'] ?? '****',
             balance: (account['balance']['current'] ?? 0).toDouble(),
             creditLimit: (account['balance']['limit'] ?? 1000).toDouble(),
-            apr: 19.99, // Default APR since Plaid doesn't provide this
+            apr: 19.99,
             bankName: account['institution'] ?? 'Bank',
           );
           return _buildCreditCardItem(card);
@@ -2289,7 +2243,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           );
         }).toList(),
       );
-    } else { // Checking accounts
+    } else {
       return Column(
         children: filteredAccounts.map((account) {
           final balance = (account['balance']['available'] ?? account['balance']['current'] ?? 0).toDouble();
@@ -2308,9 +2262,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     required String subtitle,
     required String amount,
   }) {
-    // Fix any string interpolation that might not have been processed
-    final fixedAmount = amount.fixInterpolation();
-    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -2337,7 +2288,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ),
           Text(
-            _showBalances ? fixedAmount : '••••••',
+            _showBalances ? amount : '••••••',
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -2349,527 +2300,257 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildCreditCardItem(CreditCard card) {
-  final utilization = card.creditLimit > 0 ? card.balance / card.creditLimit : 0.0;
+    final utilization = card.creditLimit > 0 ? card.balance / card.creditLimit : 0.0;
 
-  return Container(
-    margin: const EdgeInsets.all(16),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(16),
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          const Color(0xFF2B3A55),
-          const Color(0xFF2B3A55).withOpacity(0.8),
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF2B3A55),
+            const Color(0xFF2B3A55).withOpacity(0.8),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
         ],
       ),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.1),
-          blurRadius: 10,
-          offset: const Offset(0, 5),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Text(
-                card.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Image.asset(
-              'assets/images/just_logo.png',
-              height: 30,
-              width: 30,
-              color: Colors.white.withOpacity(0.9),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '**** **** **** ${card.lastFour}',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.8),
-            fontSize: 14,
-            letterSpacing: 2,
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Current Balance',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _showBalances ? '\$${card.balance.toStringAsFixed(2)}' : '••••••',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  card.name,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
                     fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  'Available Credit',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _showBalances ? '\$${(card.creditLimit - card.balance).toStringAsFixed(2)}' : '••••••',
-                  style: const TextStyle(
-                    color: Colors.white,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        Text(
-          'Credit Used',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
-            fontSize: 12,
+              ),
+              Image.asset(
+                'assets/images/just_logo.png',
+                height: 30,
+                width: 30,
+                color: Colors.white.withOpacity(0.9),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 6),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final maxWidth = constraints.maxWidth;
-            return Stack(
-              children: [
-                Container(
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                Container(
-                  height: 6,
-                  width: (maxWidth * utilization).clamp(0, maxWidth), // Prevent overflow
-                  decoration: BoxDecoration(
-                    color: utilization > 0.7 ? Colors.red[400] : Colors.green[400],
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '${(utilization * 100).toStringAsFixed(1)}% used'.fixInterpolation(),
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 12,
-              ),
-            ),
-            Text(
-              'Limit: \$${card.creditLimit.toStringAsFixed(0)}'.fixInterpolation(),
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'APR: ${card.apr}%',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 12,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'Due: ${DateFormat('MMM dd').format(DateTime.now().add(const Duration(days: 15)))}',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
-
-  Widget _buildInvestmentItem({
-  required String name,
-  required String subtitle,
-  required String amount,
-  required double returnRate,
-  bool showCDDetails = false,
-  bool showGraph = false, // Add parameter for graph
-}) {
-  // Parse the amount to a double for graph calculation
-  final currentBalance = double.tryParse(amount.replaceAll('\$', '').replaceAll(',', '')) ?? 0.0;
-  
-  // Calculate historical data for the graph (12 months)
-  final List<FlSpot> growthData = [];
-  if (showGraph && currentBalance > 0) {
-    final annualReturn = returnRate / 100; // e.g., 8.5% → 0.085
-    final monthlyReturn = annualReturn / 12; // e.g., 0.085 / 12 ≈ 0.007083
-    final initialBalance = currentBalance / (1 + annualReturn); // Balance 12 months ago
-    
-    for (int month = 0; month <= 12; month++) {
-      final balance = initialBalance * (1 + monthlyReturn * month);
-      growthData.add(FlSpot(month.toDouble(), balance));
-    }
-  }
-
-  return Container(
-    margin: const EdgeInsets.all(16),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 10,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF2B3A55),
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Text(
-              _showBalances ? amount : '••••••',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[600],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.arrow_upward,
-                    color: Colors.green,
-                    size: 14,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$returnRate% return',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.green,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2B3A55).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                name.contains('401') ? 'Retirement' : 'Fixed Income',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF2B3A55),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (showGraph && growthData.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          const Text(
-            'Growth Over Last 12 Months',
+          const SizedBox(height: 8),
+          Text(
+            '**** **** **** ${card.lastFour}',
             style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF2B3A55),
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 14,
+              letterSpacing: 2,
             ),
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 100,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(show: false),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Current Balance',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 12,
+                    ),
                   ),
-                  rightTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                minX: 0,
-                maxX: 12,
-                minY: growthData.first.y * 0.95, // Add some padding below
-                maxY: growthData.last.y * 1.05, // Add some padding above
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: growthData,
-                    isCurved: true,
-                    color: Colors.green,
-                    barWidth: 2,
-                    isStrokeCapRound: true,
-                    dotData: FlDotData(show: false),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: Colors.green.withOpacity(0.1),
+                  const SizedBox(height: 4),
+                  Text(
+                    _showBalances ? '\$${card.balance.toStringAsFixed(2)}' : '••••••',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
               ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Available Credit',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _showBalances ? '\$${(card.creditLimit - card.balance).toStringAsFixed(2)}' : '••••••',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Credit Used',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 12,
             ),
+          ),
+          const SizedBox(height: 6),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final maxWidth = constraints.maxWidth;
+              return Stack(
+                children: [
+                  Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  Container(
+                    height: 6,
+                    width: (maxWidth * utilization).clamp(0, maxWidth),
+                    decoration: BoxDecoration(
+                      color: utilization > 0.7 ? Colors.red[400] : Colors.green[400],
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${(utilization * 100).toStringAsFixed(1)}% used',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                'Limit: \$${card.creditLimit.toStringAsFixed(0)}',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ],
-        if (showCDDetails) ...[
-          const SizedBox(height: 20),
-          const Text(
-            'Certificate Details',
+      ),
+    );
+  }
+
+  Widget _buildInvestmentItem({
+    required String name,
+    required String subtitle,
+    required String amount,
+    required double returnRate,
+    bool showCDDetails = false,
+    bool showGraph = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF2B3A55),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                _showBalances ? amount : '••••••',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
             style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF2B3A55),
+              fontSize: 14,
+              color: Colors.grey[600],
             ),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
-                child: _buildInvestmentDetailItem(
-                  label: 'Initial Investment',
-                  value: '\$10,000.00',
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-              Expanded(
-                child: _buildInvestmentDetailItem(
-                  label: 'Earnings',
-                  value: '+\$435.62',
-                  valueColor: Colors.green,
-                ),
-              ),
-              Expanded(
-                child: _buildInvestmentDetailItem(
-                  label: 'Maturity Date',
-                  value: 'Jun 15, 2025',
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.arrow_upward,
+                      color: Colors.green,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$returnRate% return',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.green,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 100,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(show: false),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  rightTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                minX: 0,
-                maxX: 12,
-                minY: 10000,
-                maxY: 10450,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: [
-                      const FlSpot(0, 10000),
-                      const FlSpot(1, 10038),
-                      const FlSpot(2, 10076),
-                      const FlSpot(3, 10114),
-                      const FlSpot(4, 10152),
-                      const FlSpot(5, 10191),
-                      const FlSpot(6, 10229),
-                      const FlSpot(7, 10267),
-                      const FlSpot(8, 10306),
-                      const FlSpot(9, 10344),
-                      const FlSpot(10, 10382),
-                      const FlSpot(11, 10414),
-                      const FlSpot(12, 10435),
-                    ],
-                    isCurved: true,
-                    color: Colors.green,
-                    barWidth: 2,
-                    isStrokeCapRound: true,
-                    dotData: FlDotData(show: false),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: Colors.green.withOpacity(0.1),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2B3A55).withOpacity(0.05),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: const Color(0xFF2B3A55).withOpacity(0.1),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.info_outline,
-                  color: Color(0xFF2B3A55),
-                  size: 18,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Early withdrawal may result in penalties. Consider laddering CDs for better liquidity.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
-      ],
-    ),
-  );
-}
-
-  Widget _buildInvestmentDetailItem({
-    required String label,
-    required String value,
-    Color? valueColor,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: valueColor ?? Colors.black,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
+      ),
     );
   }
 
@@ -2890,21 +2571,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     return _buildAccountItemCard(
-    title,
-    'N/A',
-    icon,
-    showPlaceholder: true,
-    expandable: false,
-    latestBalance: AccountBalance(
-      date: DateTime.now(),
-      checking: 0,
-      creditCardBalance: 0,
-      savings: 0,
-      investmentAccount: 0,
-      netWorth: 0,
-    ),
-  );
-}
+      title,
+      'N/A',
+      icon,
+      showPlaceholder: true,
+      expandable: false,
+      latestBalance: AccountBalance(
+        date: DateTime.now(),
+        checking: 0,
+        creditCardBalance: 0,
+        savings: 0,
+        investmentAccount: 0,
+        netWorth: 0,
+      ),
+    );
+  }
 
   Future<void> _handleAddAccount() async {
     setState(() {
@@ -2912,7 +2593,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
     
     try {
-      // Get link token
       final linkToken = await _plaidService.createLinkToken();
       if (linkToken == null) {
         setState(() {
@@ -2929,12 +2609,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         return;
       }
       
-      // Configure Plaid Link
       LinkTokenConfiguration configuration = LinkTokenConfiguration(
         token: linkToken,
       );
       
-      // Create and open Plaid Link
       await PlaidLink.create(configuration: configuration);
       await PlaidLink.open();
             
@@ -3148,20 +2826,20 @@ class _DashboardScreenState extends State<DashboardScreen>
                       const SizedBox(height: 16),
                       _buildAccountItemCard(
                         'Checking',
-                        '\${latestBalance.checking.toStringAsFixed(2)}',
+                        '\$${latestBalance.checking.toStringAsFixed(2)}',
                         Icons.account_balance_outlined,
                         latestBalance: latestBalance,
                       ),
                       _buildAccountItemCard(
                         'Card Balance',
-                        '-\${latestBalance.creditCardBalance.abs().toStringAsFixed(2)}',
+                        '-\$${latestBalance.creditCardBalance.abs().toStringAsFixed(2)}',
                         Icons.credit_card_outlined,
                         latestBalance: latestBalance,
                         amountColor: Colors.red,
                       ),
                       _buildAccountItemCard(
                         'Net Cash',
-                        '\${(latestBalance.checking + latestBalance.creditCardBalance).toStringAsFixed(2)}',
+                        '\$${(latestBalance.checking + latestBalance.creditCardBalance).toStringAsFixed(2)}',
                         Icons.attach_money_outlined,
                         latestBalance: latestBalance,
                         amountColor: Colors.green,
@@ -3169,7 +2847,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                       _buildAccountItemCard(
                         'Investments',
-                        '\${latestBalance.investmentAccount.toStringAsFixed(2)}',
+                        '\$${latestBalance.investmentAccount.toStringAsFixed(2)}',
                         Icons.show_chart_outlined,
                         latestBalance: latestBalance,
                       ),
@@ -3227,6 +2905,20 @@ class BudgetCategory {
   });
 }
 
+class SpendingTrend {
+  final String category;
+  final double currentSpend;
+  final double previousSpend;
+  final double trend;
+
+  SpendingTrend({
+    required this.category,
+    required this.currentSpend,
+    required this.previousSpend,
+    required this.trend,
+  });
+}
+
 class FinancialInsight {
   final String title;
   final String description;
@@ -3243,35 +2935,9 @@ class FinancialInsight {
   });
 }
 
-class SpendingTrend {
-  final String category;
-  final double currentSpend;
-  final double previousSpend;
-  final double trend;
-
-  SpendingTrend({
-    required this.category,
-    required this.currentSpend,
-    required this.previousSpend,
-    required this.trend,
-  });
-}
-
 class CreditScoreData {
   final DateTime date;
   final int score;
 
   CreditScoreData(this.date, this.score);
-}
-
-// This extension fixes the string interpolation issue that happens in the UI
-extension StringInterpolationFix on String {
-  String fixInterpolation() {
-    if (this.contains(r'${') && this.contains('}')) {
-      return this.replaceAllMapped(RegExp(r'\$\{([^}]*)\}'), (match) {
-        return match.group(1) ?? '';
-      });
-    }
-    return this;
-  }
 }
