@@ -7,6 +7,7 @@ import 'package:finsight/models/transaction.dart';
 import 'package:finsight/models/credit_card.dart';
 import 'package:finsight/services/plaid_service.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -48,6 +49,13 @@ class DataService {
         transaction.cardId ?? '',
         transaction.isPersonal.toString(),
         transaction.id ?? '',
+        transaction.merchantName ?? '',
+        transaction.merchantLogoUrl ?? '',
+        transaction.merchantWebsite ?? '',
+        transaction.location ?? '',
+        transaction.confidence?.toString() ?? '',
+        transaction.isRecurring.toString(),
+        transaction.paymentMethod ?? '',
       ].map((field) => '"${field.replaceAll('"', '""')}"').join(',');
 
       await file.writeAsString('$row\n', mode: FileMode.append);
@@ -75,21 +83,21 @@ class DataService {
     }
   }
 
-  // Get transactions - prioritizes Plaid data when available
-  Future<List<Transaction>> getTransactions() async {
+  // Get transactions - prioritizes Plaid enriched data when available
+  Future<List<Transaction>> getTransactions({BuildContext? context}) async {
     List<Transaction> allTransactions = [];
 
     // First, try to get Plaid transactions if connected
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
-      if (hasPlaidConnection) {
+      if (hasPlaidConnection && context != null) {
         final plaidTransactions = await _plaidService.fetchTransactions(
-          context: _getDummyContext(),
+          context: context,
           startDate: DateTime.now().subtract(const Duration(days: 365)),
           endDate: DateTime.now(),
         );
         allTransactions.addAll(plaidTransactions);
-        print('Loaded ${plaidTransactions.length} Plaid transactions');
+        print('Loaded ${plaidTransactions.length} enriched Plaid transactions');
       }
     } catch (e) {
       print('Could not load Plaid transactions: $e');
@@ -124,6 +132,17 @@ class DataService {
                     ? row[7].toString().toLowerCase() == 'true'
                     : false,
                 id: row.length >= 9 ? row[8].toString() : null,
+                merchantName: row.length >= 10 ? row[9].toString() : null,
+                merchantLogoUrl: row.length >= 11 ? row[10].toString() : null,
+                merchantWebsite: row.length >= 12 ? row[11].toString() : null,
+                location: row.length >= 13 ? row[12].toString() : null,
+                confidence: row.length >= 14 && row[13].toString().isNotEmpty
+                    ? double.tryParse(row[13].toString())
+                    : null,
+                isRecurring: row.length >= 15
+                    ? row[14].toString().toLowerCase() == 'true'
+                    : false,
+                paymentMethod: row.length >= 16 ? row[15].toString() : null,
               ));
             }
           } catch (e) {
@@ -140,7 +159,7 @@ class DataService {
   }
 
   // Get account balances - uses Plaid when available
-  Future<List<AccountBalance>> getAccountBalances() async {
+  Future<List<AccountBalance>> getAccountBalances({BuildContext? context}) async {
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
       
@@ -210,13 +229,13 @@ class DataService {
   }
 
   // Get monthly spending - processes from real transaction data when Plaid is available
-  Future<List<MonthlySpending>> getMonthlySpending() async {
+  Future<List<MonthlySpending>> getMonthlySpending({BuildContext? context}) async {
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
       
-      if (hasPlaidConnection) {
+      if (hasPlaidConnection && context != null) {
         // Process real transaction data into monthly spending
-        return await _getMonthlySpendingFromTransactions();
+        return await _getMonthlySpendingFromTransactions(context: context);
       } else {
         // Fall back to static data
         return await _getStaticMonthlySpending();
@@ -227,9 +246,9 @@ class DataService {
     }
   }
 
-  Future<List<MonthlySpending>> _getMonthlySpendingFromTransactions() async {
+  Future<List<MonthlySpending>> _getMonthlySpendingFromTransactions({BuildContext? context}) async {
     try {
-      final transactions = await getTransactions();
+      final transactions = await getTransactions(context: context);
       
       if (transactions.isEmpty) {
         print('No transactions available for monthly spending calculation');
@@ -270,7 +289,7 @@ class DataService {
           if (tx.transactionType.toLowerCase() == 'credit') {
             totalIncome += tx.amount;
           } else {
-            // Categorize spending - including new Subscriptions category
+            // Categorize spending - including Subscriptions category
             switch (tx.category) {
               case 'Groceries':
                 groceries += tx.amount;
@@ -300,7 +319,7 @@ class DataService {
                 insurance += tx.amount;
                 break;
               case 'Subscriptions':
-                // Add subscriptions to miscellaneous for now since MonthlySpending model doesn't have it
+                // Add subscriptions to miscellaneous since MonthlySpending model doesn't have it
                 miscellaneous += tx.amount;
                 break;
               default:
@@ -329,7 +348,7 @@ class DataService {
       // Sort chronologically
       result.sort((a, b) => a.date.compareTo(b.date));
       
-      print('Generated ${result.length} months of spending data from ${transactions.length} transactions');
+      print('Generated ${result.length} months of spending data from ${transactions.length} enriched transactions');
       return result;
     } catch (e) {
       print('Error processing transactions to monthly spending: $e');
@@ -398,12 +417,12 @@ class DataService {
   }
 
   // Get checking accounts - uses Plaid when available
-  Future<List<CheckingAccount>> getCheckingAccounts() async {
+  Future<List<CheckingAccount>> getCheckingAccounts({BuildContext? context}) async {
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
       
-      if (hasPlaidConnection) {
-        final accounts = await _plaidService.getAccounts(_getDummyContext());
+      if (hasPlaidConnection && context != null) {
+        final accounts = await _plaidService.getAccounts(context);
         final checkingAccounts = accounts
             .where((account) => 
                 account['type'] == 'depository' ||
@@ -460,12 +479,12 @@ class DataService {
   }
 
   // Get credit cards - uses Plaid when available
-  Future<List<CreditCard>> getCreditCards() async {
+  Future<List<CreditCard>> getCreditCards({BuildContext? context}) async {
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
       
-      if (hasPlaidConnection) {
-        final accounts = await _plaidService.getAccounts(_getDummyContext());
+      if (hasPlaidConnection && context != null) {
+        final accounts = await _plaidService.getAccounts(context);
         final creditCards = accounts
             .where((account) => 
                 account['type'] == 'credit' ||
@@ -523,7 +542,7 @@ class DataService {
     }
   }
 
-  Future<double> getNetCash() async {
+  Future<double> getNetCash({BuildContext? context}) async {
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
       
@@ -558,14 +577,14 @@ class DataService {
   }
 
   // Get credit score data - Enhanced with real-time estimates when Plaid is connected
-  Future<List<Map<String, dynamic>>> getCreditScoreHistory() async {
+  Future<List<Map<String, dynamic>>> getCreditScoreHistory({BuildContext? context}) async {
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
       
       if (hasPlaidConnection) {
         // When connected to Plaid, generate more realistic credit score based on financial health
         final balances = await _plaidService.getAccountBalances();
-        final transactions = await getTransactions();
+        final transactions = await getTransactions(context: context);
         
         // Calculate estimated credit score based on financial behavior
         int estimatedScore = await _calculateEstimatedCreditScore(balances, transactions);
@@ -636,6 +655,15 @@ class DataService {
       if (incomeTransactions.length > 4) {
         baseScore += 15; // Regular income
       }
+      
+      // Check for subscription management (positive for having subscriptions under control)
+      final subscriptions = transactions.where((t) => t.isLikelySubscription).toList();
+      final avgMonthlySubscriptions = subscriptions.length / 12;
+      if (avgMonthlySubscriptions < 10) {
+        baseScore += 10; // Good subscription management
+      } else if (avgMonthlySubscriptions > 20) {
+        baseScore -= 10; // Too many subscriptions
+      }
     }
     
     // Ensure score is within realistic range
@@ -683,10 +711,10 @@ class DataService {
     }
   }
 
-  // Get insights based on spending patterns - Enhanced with real transaction analysis
-  Future<List<Map<String, dynamic>>> getSpendingInsights() async {
+  // Get insights based on spending patterns - Enhanced with enriched transaction analysis
+  Future<List<Map<String, dynamic>>> getSpendingInsights({BuildContext? context}) async {
     try {
-      final transactions = await getTransactions();
+      final transactions = await getTransactions(context: context);
       final insights = <Map<String, dynamic>>[];
       
       if (transactions.isEmpty) return insights;
@@ -722,7 +750,7 @@ class DataService {
             (lastSpending[transaction.category] ?? 0) + transaction.amount;
       }
 
-      // Generate insights
+      // Generate insights based on enriched data
       currentSpending.forEach((category, currentAmount) {
         final lastAmount = lastSpending[category] ?? 0;
         if (lastAmount > 0) {
@@ -748,11 +776,11 @@ class DataService {
         }
       });
 
-      // Additional insights for Plaid users
+      // Enriched insights using Plaid data
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
       if (hasPlaidConnection) {
-        // Subscription analysis
-        final subscriptionTransactions = transactions.where((t) => t.category == 'Subscriptions').toList();
+        // Subscription analysis with enriched data
+        final subscriptionTransactions = transactions.where((t) => t.isLikelySubscription).toList();
         if (subscriptionTransactions.isNotEmpty) {
           final monthlySubscriptionCost = subscriptionTransactions
               .where((t) => t.date.isAfter(now.subtract(const Duration(days: 30))))
@@ -761,7 +789,7 @@ class DataService {
           if (monthlySubscriptionCost > 100) {
             insights.add({
               'type': 'info',
-              'title': 'Subscription Review',
+              'title': 'Subscription Review Needed',
               'description': 'You\'re spending \$${monthlySubscriptionCost.toStringAsFixed(0)}/month on subscriptions. Consider reviewing them.',
               'category': 'Subscriptions',
               'amount': monthlySubscriptionCost,
@@ -769,8 +797,68 @@ class DataService {
           }
         }
 
-        // Large transaction analysis
-        final largeTransactions = currentMonthTransactions.where((t) => t.amount > 500).toList();
+        // Merchant concentration analysis
+        final merchantSpending = <String, double>{};
+        for (final transaction in currentMonthTransactions) {
+          final merchant = transaction.merchantName ?? transaction.description;
+          merchantSpending[merchant] = (merchantSpending[merchant] ?? 0) + transaction.amount;
+        }
+        
+        if (merchantSpending.isNotEmpty) {
+          final topMerchant = merchantSpending.entries.reduce((a, b) => a.value > b.value ? a : b);
+          if (topMerchant.value > 500) {
+            insights.add({
+              'type': 'info',
+              'title': 'High Merchant Spending',
+              'description': 'You spent \$${topMerchant.value.toStringAsFixed(0)} at ${topMerchant.key} this month.',
+              'category': 'Merchant Analysis',
+              'merchant': topMerchant.key,
+              'amount': topMerchant.value,
+            });
+          }
+        }
+
+        // Location-based insights
+        final locationTransactions = transactions.where((t) => t.location != null).toList();
+        if (locationTransactions.isNotEmpty) {
+          final locationSpending = <String, double>{};
+          for (final transaction in locationTransactions) {
+            final location = transaction.formattedLocation!;
+            locationSpending[location] = (locationSpending[location] ?? 0) + transaction.amount;
+          }
+          
+          if (locationSpending.length > 1) {
+            final topLocation = locationSpending.entries.reduce((a, b) => a.value > b.value ? a : b);
+            insights.add({
+              'type': 'info',
+              'title': 'Top Spending Location',
+              'description': 'Most spending this month was in ${topLocation.key} (\$${topLocation.value.toStringAsFixed(0)}).',
+              'category': 'Location Analysis',
+              'location': topLocation.key,
+              'amount': topLocation.value,
+            });
+          }
+        }
+
+        // Confidence-based insights
+        final lowConfidenceTransactions = transactions
+            .where((t) => t.confidence != null && t.confidence! < 0.5)
+            .toList();
+        
+        if (lowConfidenceTransactions.length > 10) {
+          insights.add({
+            'type': 'info',
+            'title': 'Transaction Categorization',
+            'description': '${lowConfidenceTransactions.length} transactions have uncertain categorization. Review for accuracy.',
+            'category': 'Data Quality',
+            'count': lowConfidenceTransactions.length,
+          });
+        }
+
+        // Large transaction analysis with enriched data
+        final largeTransactions = currentMonthTransactions
+            .where((t) => t.amount > 500)
+            .toList();
         if (largeTransactions.isNotEmpty) {
           insights.add({
             'type': 'info',
@@ -778,6 +866,11 @@ class DataService {
             'description': 'You made ${largeTransactions.length} large purchase${largeTransactions.length > 1 ? 's' : ''} this month.',
             'category': 'Large Purchases',
             'count': largeTransactions.length,
+            'transactions': largeTransactions.map((t) => {
+              'merchant': t.merchantName ?? t.description,
+              'amount': t.amount,
+              'category': t.category,
+            }).toList(),
           });
         }
       }
@@ -787,11 +880,5 @@ class DataService {
       print('Error generating spending insights: $e');
       return [];
     }
-  }
-
-  // Dummy context for when context is needed but not available
-  dynamic _getDummyContext() {
-    // This is a placeholder - in real usage, proper context should be passed
-    return null;
   }
 }

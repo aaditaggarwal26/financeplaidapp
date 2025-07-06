@@ -105,7 +105,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
 
   Future<void> _launchWebsite() async {
     if (widget.transaction.merchantWebsite != null) {
-      final url = 'https://${widget.transaction.merchantWebsite}';
+      final url = widget.transaction.merchantWebsite!.startsWith('http') 
+          ? widget.transaction.merchantWebsite!
+          : 'https://${widget.transaction.merchantWebsite}';
       if (await canLaunchUrl(Uri.parse(url))) {
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       }
@@ -204,7 +206,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
               position: _slideAnimation,
               child: Column(
                 children: [
-                  // Enhanced Header Section
+                  // Enhanced Header Section with Plaid Enrich data
                   Container(
                     padding: EdgeInsets.only(
                       top: MediaQuery.of(context).padding.top + 20,
@@ -239,13 +241,38 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              DateFormat('EEE, MMM d, yyyy').format(widget.transaction.date),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w500,
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  DateFormat('EEE, MMM d, yyyy').format(widget.transaction.date),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (widget.transaction.formattedLocation != null) ...[
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.location_on,
+                                        color: Colors.white70,
+                                        size: 14,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        widget.transaction.formattedLocation!,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
                             ),
                             Row(
                               children: [
@@ -273,13 +300,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                         ),
                         const SizedBox(height: 24),
                         
-                        // Merchant Logo and Info
+                        // Enhanced Merchant Logo and Info
                         Row(
                           children: [
-                            // Merchant Logo
+                            // Merchant Logo with Plaid Enrich support
                             Container(
-                              width: 60,
-                              height: 60,
+                              width: 64,
+                              height: 64,
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(16),
@@ -295,23 +322,52 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                         widget.transaction.merchantLogoUrl!,
                                         fit: BoxFit.cover,
                                         errorBuilder: (context, error, stackTrace) {
+                                          // Try effective logo as fallback
+                                          if (widget.transaction.effectiveLogo != null) {
+                                            return Image.network(
+                                              widget.transaction.effectiveLogo!,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return Icon(
+                                                  _getCategoryIcon(),
+                                                  color: Colors.white,
+                                                  size: 32,
+                                                );
+                                              },
+                                            );
+                                          }
                                           return Icon(
                                             _getCategoryIcon(),
                                             color: Colors.white,
-                                            size: 28,
+                                            size: 32,
                                           );
                                         },
                                       ),
                                     )
-                                  : Icon(
-                                      _getCategoryIcon(),
-                                      color: Colors.white,
-                                      size: 28,
-                                    ),
+                                  : widget.transaction.effectiveLogo != null
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(15),
+                                          child: Image.network(
+                                            widget.transaction.effectiveLogo!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return Icon(
+                                                _getCategoryIcon(),
+                                                color: Colors.white,
+                                                size: 32,
+                                              );
+                                            },
+                                          ),
+                                        )
+                                      : Icon(
+                                          _getCategoryIcon(),
+                                          color: Colors.white,
+                                          size: 32,
+                                        ),
                             ),
                             const SizedBox(width: 16),
                             
-                            // Merchant Name and Category
+                            // Enhanced Merchant Name and Category
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,7 +383,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 4),
-                                  Row(
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
                                     children: [
                                       Container(
                                         padding: const EdgeInsets.symmetric(
@@ -348,7 +406,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                         ),
                                       ),
                                       if (widget.transaction.isRecurring) ...[
-                                        const SizedBox(width: 8),
                                         Container(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 8,
@@ -361,6 +418,46 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                           child: const Text(
                                             'RECURRING',
                                             style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      if (widget.transaction.isLikelySubscription) ...[
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.purple.withOpacity(0.3),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: const Text(
+                                            'SUBSCRIPTION',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      if (widget.transaction.confidence != null) ...[
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _getConfidenceColor(widget.transaction.confidence!).withOpacity(0.3),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            widget.transaction.confidenceLevel,
+                                            style: const TextStyle(
                                               color: Colors.white,
                                               fontSize: 10,
                                               fontWeight: FontWeight.bold,
@@ -390,7 +487,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                     ),
                   ),
 
-                  // Transaction Details
+                  // Transaction Details with Enriched Information
                   Expanded(
                     child: ListView(
                       padding: const EdgeInsets.all(20),
@@ -406,7 +503,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                           const SizedBox(height: 16),
                         ],
                         
-                        // Transaction Details Card
+                        // Enhanced Transaction Details Card
                         _buildDetailCard(
                           title: 'Transaction Details',
                           children: [
@@ -421,13 +518,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                               'Time',
                               DateFormat('h:mm a').format(widget.transaction.date),
                             ),
+                            if (widget.transaction.paymentMethod != null)
+                              _buildDetailItem(
+                                'Payment Method',
+                                widget.transaction.paymentMethodDisplay,
+                              ),
                           ],
                         ),
                         const SizedBox(height: 16),
                         
-                        // Merchant Information Card
+                        // Enhanced Merchant Information Card with Plaid Enrich data
                         if (widget.transaction.merchantName != null ||
-                            widget.transaction.originalDescription != null) ...[
+                            widget.transaction.originalDescription != null ||
+                            widget.transaction.merchantDescription != null) ...[
                           _buildDetailCard(
                             title: 'Merchant Information',
                             children: [
@@ -437,6 +540,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                   widget.transaction.merchantName!,
                                   copyable: true,
                                 ),
+                              if (widget.transaction.merchantDescription != null)
+                                _buildDetailItem(
+                                  'Merchant Description',
+                                  widget.transaction.merchantDescription!,
+                                ),
                               if (widget.transaction.originalDescription != null &&
                                   widget.transaction.originalDescription != widget.transaction.description)
                                 _buildDetailItem(
@@ -444,39 +552,61 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                   widget.transaction.originalDescription!,
                                   copyable: true,
                                 ),
-                              if (widget.transaction.location != null)
-                                _buildDetailItem('Location', widget.transaction.location!),
-                              if (widget.transaction.paymentMethod != null)
-                                _buildDetailItem('Payment Method', widget.transaction.paymentMethod!),
+                              if (widget.transaction.formattedLocation != null)
+                                _buildDetailItem('Location', widget.transaction.formattedLocation!),
+                              if (widget.transaction.merchantWebsite != null)
+                                _buildDetailItem('Website', widget.transaction.merchantWebsite!),
+                              if (widget.transaction.merchantCategories != null && 
+                                  widget.transaction.merchantCategories!.isNotEmpty)
+                                _buildDetailItem(
+                                  'Merchant Categories',
+                                  widget.transaction.merchantCategories!.join(', '),
+                                ),
                             ],
                           ),
                           const SizedBox(height: 16),
                         ],
                         
-                        // Additional Information Card
+                        // Enhanced Data Quality and Enrichment Card
                         _buildDetailCard(
-                          title: 'Additional Information',
+                          title: 'Data Quality & Enrichment',
                           children: [
-                            if (widget.transaction.cardId != null)
+                            if (widget.transaction.confidence != null)
                               _buildDetailItem(
-                                'Card Used',
-                                widget.transaction.cardId!.length >= 4
-                                    ? '****${widget.transaction.cardId!.substring(widget.transaction.cardId!.length - 4)}'
-                                    : widget.transaction.cardId!,
+                                'Categorization Confidence',
+                                '${(widget.transaction.confidence! * 100).toStringAsFixed(0)}% (${widget.transaction.confidenceLevel})',
                               ),
                             _buildDetailItem(
-                              'Entry Type',
-                              widget.transaction.isPersonal ? 'Manual Entry' : 'Bank Import',
+                              'Data Source',
+                              widget.transaction.isPersonal ? 'Manual Entry' : 'Bank Import (Plaid)',
                             ),
                             if (widget.transaction.plaidCategory != null)
                               _buildDetailItem(
                                 'Plaid Category',
                                 widget.transaction.plaidCategory!,
                               ),
-                            if (widget.transaction.confidence != null)
+                            if (!widget.transaction.isPersonal) ...[
                               _buildDetailItem(
-                                'Categorization Confidence',
-                                '${(widget.transaction.confidence! * 100).toStringAsFixed(0)}%',
+                                'Enrichment Status',
+                                widget.transaction.hasLogo ? 'Fully Enriched' : 'Partially Enriched',
+                              ),
+                              if (widget.transaction.isRecurring)
+                                _buildDetailItem(
+                                  'Recurrence Detected',
+                                  'Yes',
+                                ),
+                              if (widget.transaction.isLikelySubscription)
+                                _buildDetailItem(
+                                  'Subscription Service',
+                                  'Likely subscription or recurring service',
+                                ),
+                            ],
+                            if (widget.transaction.cardId != null)
+                              _buildDetailItem(
+                                'Card Used',
+                                widget.transaction.cardId!.length >= 4
+                                    ? '****${widget.transaction.cardId!.substring(widget.transaction.cardId!.length - 4)}'
+                                    : widget.transaction.cardId!,
                               ),
                           ],
                         ),
@@ -492,6 +622,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         },
       ),
     );
+  }
+
+  Color _getConfidenceColor(double confidence) {
+    if (confidence >= 0.9) return Colors.green;
+    if (confidence >= 0.7) return Colors.lightGreen;
+    if (confidence >= 0.5) return Colors.orange;
+    if (confidence >= 0.3) return Colors.red;
+    return Colors.grey;
   }
 
   Widget _buildActionCard({

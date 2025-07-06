@@ -38,6 +38,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
   }
 
   Future<void> _initializeData() async {
+    if (!mounted) return;
+    
     setState(() {
       isLoading = true;
     });
@@ -52,33 +54,27 @@ class _TransactionScreenState extends State<TransactionScreen> {
       }
     } catch (e) {
       print('Error initializing transaction data: $e');
-      await _loadLocalTransactions();
+      if (mounted) {
+        await _loadLocalTransactions();
+      }
     }
 
-    setState(() {
-      isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadPlaidTransactions() async {
+    if (!mounted) return;
+    
     try {
-      // Load transactions from the past year
-      final now = DateTime.now();
-      final oneYearAgo = DateTime(now.year - 1, now.month, now.day);
+      // Load transactions with context
+      final allTransactions = await _dataService.getTransactions(context: context);
       
-      final plaidTransactions = await _plaidService.fetchTransactions(
-        context: context,
-        startDate: oneYearAgo,
-        endDate: now,
-      );
+      if (!mounted) return;
 
-      // Also load any manually added transactions
-      final localTransactions = await _dataService.getTransactions();
-      final manualTransactions = localTransactions.where((t) => t.isPersonal).toList();
-
-      // Combine Plaid and manual transactions
-      final allTransactions = [...plaidTransactions, ...manualTransactions];
-      
       setState(() {
         transactions = allTransactions..sort((a, b) => b.date.compareTo(a.date));
         _hasPlaidConnection = true;
@@ -93,14 +89,19 @@ class _TransactionScreenState extends State<TransactionScreen> {
             backgroundColor: Colors.red,
           ),
         );
+        await _loadLocalTransactions();
       }
-      await _loadLocalTransactions();
     }
   }
 
   Future<void> _loadLocalTransactions() async {
+    if (!mounted) return;
+    
     try {
       final localTransactions = await _dataService.getTransactions();
+      
+      if (!mounted) return;
+      
       setState(() {
         transactions = localTransactions..sort((a, b) => b.date.compareTo(a.date));
         _hasPlaidConnection = false;
@@ -108,11 +109,13 @@ class _TransactionScreenState extends State<TransactionScreen> {
       });
     } catch (e) {
       print('Error loading local transactions: $e');
-      setState(() {
-        transactions = [];
-        _hasPlaidConnection = false;
-        _filterTransactions(_searchController.text);
-      });
+      if (mounted) {
+        setState(() {
+          transactions = [];
+          _hasPlaidConnection = false;
+          _filterTransactions(_searchController.text);
+        });
+      }
     }
   }
 
@@ -131,6 +134,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
   }
 
   void _filterByMonth(String month) {
+    if (!mounted) return;
+    
     setState(() {
       selectedMonth = month;
       _filterTransactions(_searchController.text);
@@ -138,6 +143,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
   }
 
   void _filterTransactions(String query) {
+    if (!mounted) return;
+    
     setState(() {
       filteredTransactions = transactions.where((transaction) {
         final matchesSearch = query.isEmpty ||
@@ -230,6 +237,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
   }
 
   void _resetFilters() {
+    if (!mounted) return;
+    
     setState(() {
       selectedCategory = 'All';
       selectedTransactionType = 'All';
@@ -262,7 +271,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
       },
     );
 
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(() {
         selectedDateRange = picked;
         _filterTransactions(_searchController.text);
@@ -278,20 +287,24 @@ class _TransactionScreenState extends State<TransactionScreen> {
           Chip(
             label: Text(selectedCategory),
             onDeleted: () {
-              setState(() {
-                selectedCategory = 'All';
-                _filterTransactions(_searchController.text);
-              });
+              if (mounted) {
+                setState(() {
+                  selectedCategory = 'All';
+                  _filterTransactions(_searchController.text);
+                });
+              }
             },
           ),
         if (selectedTransactionType != 'All')
           Chip(
             label: Text(selectedTransactionType),
             onDeleted: () {
-              setState(() {
-                selectedTransactionType = 'All';
-                _filterTransactions(_searchController.text);
-              });
+              if (mounted) {
+                setState(() {
+                  selectedTransactionType = 'All';
+                  _filterTransactions(_searchController.text);
+                });
+              }
             },
           ),
         if (selectedDateRange != null)
@@ -301,10 +314,12 @@ class _TransactionScreenState extends State<TransactionScreen> {
               '${DateFormat('MMM d').format(selectedDateRange!.end)}',
             ),
             onDeleted: () {
-              setState(() {
-                selectedDateRange = null;
-                _filterTransactions(_searchController.text);
-              });
+              if (mounted) {
+                setState(() {
+                  selectedDateRange = null;
+                  _filterTransactions(_searchController.text);
+                });
+              }
             },
           ),
       ],
@@ -349,10 +364,12 @@ class _TransactionScreenState extends State<TransactionScreen> {
                           selected: selectedCategory == category,
                           onSelected: (selected) {
                             setModalState(() {
-                              setState(() {
-                                selectedCategory = selected ? category : 'All';
-                                _filterTransactions(_searchController.text);
-                              });
+                              if (mounted) {
+                                setState(() {
+                                  selectedCategory = selected ? category : 'All';
+                                  _filterTransactions(_searchController.text);
+                                });
+                              }
                             });
                           },
                         ))
@@ -371,10 +388,12 @@ class _TransactionScreenState extends State<TransactionScreen> {
                           selected: selectedTransactionType == type,
                           onSelected: (selected) {
                             setModalState(() {
-                              setState(() {
-                                selectedTransactionType = selected ? type : 'All';
-                                _filterTransactions(_searchController.text);
-                              });
+                              if (mounted) {
+                                setState(() {
+                                  selectedTransactionType = selected ? type : 'All';
+                                  _filterTransactions(_searchController.text);
+                                });
+                              }
                             });
                           },
                         ))
@@ -426,6 +445,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
       'Shopping': Icons.shopping_bag,
       'Healthcare': Icons.local_hospital,
       'Insurance': Icons.security,
+      'Subscriptions': Icons.subscriptions,
       'Miscellaneous': Icons.more_horiz,
     };
   }
@@ -441,6 +461,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
       'Shopping': const Color(0xFF9B59B6),
       'Healthcare': const Color(0xFF1ABC9C),
       'Insurance': const Color(0xFF34495E),
+      'Subscriptions': const Color(0xFFFF6B6B),
       'Miscellaneous': const Color(0xFF95A5A6),
     };
     return colors[category] ?? Colors.grey;
@@ -448,12 +469,14 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
   void _handleDownload() async {
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Generating report...'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Generating report...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
 
       final exporter = TransactionExport(filteredTransactions);
       await exporter.generateAndDownloadReport();
@@ -488,12 +511,12 @@ class _TransactionScreenState extends State<TransactionScreen> {
             try {
               await _dataService.appendTransaction(transaction);
 
-              setState(() {
-                transactions.add(transaction);
-                _filterTransactions(_searchController.text);
-              });
-
               if (mounted) {
+                setState(() {
+                  transactions.add(transaction);
+                  _filterTransactions(_searchController.text);
+                });
+
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Transaction added successfully'),
@@ -519,13 +542,14 @@ class _TransactionScreenState extends State<TransactionScreen> {
   }
 
   Future<void> _handleRefresh() async {
+    if (!mounted) return;
     await _initializeData();
   }
 
   Future<void> _handleConnectAccount() async {
     try {
       final linkToken = await _plaidService.createLinkToken();
-      if (linkToken != null) {
+      if (linkToken != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please use the dashboard to connect your account'),
@@ -534,12 +558,14 @@ class _TransactionScreenState extends State<TransactionScreen> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -848,10 +874,12 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                               transaction: transaction,
                                               onDelete: transaction.isPersonal
                                                   ? () {
-                                                      setState(() {
-                                                        transactions.remove(transaction);
-                                                        _filterTransactions(_searchController.text);
-                                                      });
+                                                      if (mounted) {
+                                                        setState(() {
+                                                          transactions.remove(transaction);
+                                                          _filterTransactions(_searchController.text);
+                                                        });
+                                                      }
                                                     }
                                                   : null,
                                             ),
@@ -864,11 +892,28 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                           color: _getCategoryColor(transaction.category).withOpacity(0.1),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
-                                        child: Icon(
-                                          getCategoryIcons()[transaction.category] ?? Icons.category,
-                                          color: _getCategoryColor(transaction.category),
-                                          size: 24,
-                                        ),
+                                        child: transaction.hasLogo
+                                            ? ClipRRect(
+                                                borderRadius: BorderRadius.circular(4),
+                                                child: Image.network(
+                                                  transaction.merchantLogoUrl!,
+                                                  width: 24,
+                                                  height: 24,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return Icon(
+                                                      getCategoryIcons()[transaction.category] ?? Icons.category,
+                                                      color: _getCategoryColor(transaction.category),
+                                                      size: 24,
+                                                    );
+                                                  },
+                                                ),
+                                              )
+                                            : Icon(
+                                                getCategoryIcons()[transaction.category] ?? Icons.category,
+                                                color: _getCategoryColor(transaction.category),
+                                                size: 24,
+                                              ),
                                       ),
                                       title: Row(
                                         children: [
@@ -895,6 +940,23 @@ class _TransactionScreenState extends State<TransactionScreen> {
                                                 style: TextStyle(
                                                   fontSize: 8,
                                                   color: Colors.blue,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          if (transaction.isRecurring)
+                                            Container(
+                                              margin: const EdgeInsets.only(left: 4),
+                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: Colors.orange.withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: const Text(
+                                                'RECURRING',
+                                                style: TextStyle(
+                                                  fontSize: 8,
+                                                  color: Colors.orange,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),

@@ -33,6 +33,8 @@ class _SpendingScreenState extends State<SpendingScreen> {
   }
 
   Future<void> _initializeData() async {
+    if (!mounted) return;
+    
     setState(() {
       isLoading = true;
     });
@@ -47,36 +49,37 @@ class _SpendingScreenState extends State<SpendingScreen> {
       }
     } catch (e) {
       print('Error initializing spending data: $e');
-      await _loadStaticData();
+      if (mounted) {
+        await _loadStaticData();
+      }
     }
 
-    setState(() {
-      isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadPlaidData() async {
+    if (!mounted) return;
+    
     try {
-      // Fetch transactions for the past year
-      final now = DateTime.now();
-      final oneYearAgo = DateTime(now.year - 1, now.month, now.day);
-      
-      allTransactions = await _plaidService.fetchTransactions(
-        context: context,
-        startDate: oneYearAgo,
-        endDate: now,
-      );
+      // Use context for Plaid data loading
+      final transactions = await _dataService.getTransactions(context: context);
+      final spending = await _dataService.getMonthlySpending(context: context);
 
-      // Process transactions into monthly spending data
-      monthlySpending = _processTransactionsIntoMonthlySpending(allTransactions);
-      
-      if (monthlySpending.isNotEmpty) {
-        selectedMonthIndex = monthlySpending.length - 1;
-        displayStartIndex = (monthlySpending.length > 6) ? monthlySpending.length - 6 : 0;
-      }
+      if (!mounted) return;
 
       setState(() {
+        allTransactions = transactions;
+        monthlySpending = spending;
         _usePlaidData = true;
+        
+        if (monthlySpending.isNotEmpty) {
+          selectedMonthIndex = monthlySpending.length - 1;
+          displayStartIndex = (monthlySpending.length > 6) ? monthlySpending.length - 6 : 0;
+        }
       });
     } catch (e) {
       print('Error loading Plaid spending data: $e');
@@ -87,128 +90,40 @@ class _SpendingScreenState extends State<SpendingScreen> {
             backgroundColor: Colors.red,
           ),
         );
+        await _loadStaticData();
       }
-      await _loadStaticData();
     }
   }
 
   Future<void> _loadStaticData() async {
+    if (!mounted) return;
+    
     try {
-      monthlySpending = await _dataService.getMonthlySpending();
-      allTransactions = await _dataService.getTransactions();
+      final transactions = await _dataService.getTransactions();
+      final spending = await _dataService.getMonthlySpending();
       
-      if (monthlySpending.isNotEmpty) {
-        selectedMonthIndex = monthlySpending.length - 1;
-        displayStartIndex = (monthlySpending.length > 6) ? monthlySpending.length - 6 : 0;
-      }
-
+      if (!mounted) return;
+      
       setState(() {
+        allTransactions = transactions;
+        monthlySpending = spending;
         _usePlaidData = false;
+        
+        if (monthlySpending.isNotEmpty) {
+          selectedMonthIndex = monthlySpending.length - 1;
+          displayStartIndex = (monthlySpending.length > 6) ? monthlySpending.length - 6 : 0;
+        }
       });
     } catch (e) {
       print('Error loading static data: $e');
-      setState(() {
-        monthlySpending = [];
-        allTransactions = [];
-        _usePlaidData = false;
-      });
-    }
-  }
-
-  List<MonthlySpending> _processTransactionsIntoMonthlySpending(List<Transaction> transactions) {
-    // Group transactions by month
-    final Map<String, List<Transaction>> transactionsByMonth = {};
-    
-    for (final transaction in transactions) {
-      final monthKey = DateFormat('yyyy-MM').format(transaction.date);
-      if (!transactionsByMonth.containsKey(monthKey)) {
-        transactionsByMonth[monthKey] = [];
+      if (mounted) {
+        setState(() {
+          monthlySpending = [];
+          allTransactions = [];
+          _usePlaidData = false;
+        });
       }
-      transactionsByMonth[monthKey]!.add(transaction);
     }
-
-    // Convert to MonthlySpending objects
-    final List<MonthlySpending> result = [];
-    
-    transactionsByMonth.forEach((key, txList) {
-      final date = DateFormat('yyyy-MM').parse(key);
-      
-      // Calculate spending by category
-      double groceries = 0;
-      double utilities = 0;
-      double rent = 0;
-      double transportation = 0;
-      double entertainment = 0;
-      double diningOut = 0;
-      double shopping = 0;
-      double healthcare = 0;
-      double insurance = 0;
-      double miscellaneous = 0;
-      double subscriptions = 0;
-      double totalIncome = 0;
-
-      for (final tx in txList) {
-        if (tx.transactionType.toLowerCase() == 'credit') {
-          totalIncome += tx.amount;
-        } else {
-          // Categorize spending
-          switch (tx.category) {
-            case 'Groceries':
-              groceries += tx.amount;
-              break;
-            case 'Utilities':
-              utilities += tx.amount;
-              break;
-            case 'Rent':
-              rent += tx.amount;
-              break;
-            case 'Transportation':
-              transportation += tx.amount;
-              break;
-            case 'Entertainment':
-              entertainment += tx.amount;
-              break;
-            case 'Dining Out':
-              diningOut += tx.amount;
-              break;
-            case 'Shopping':
-              shopping += tx.amount;
-              break;
-            case 'Healthcare':
-              healthcare += tx.amount;
-              break;
-            case 'Insurance':
-              insurance += tx.amount;
-              break;
-            case 'Subscriptions':
-              subscriptions += tx.amount;
-              break;
-            default:
-              miscellaneous += tx.amount;
-              break;
-          }
-        }
-      }
-
-      result.add(MonthlySpending(
-        date: date,
-        groceries: groceries,
-        utilities: utilities,
-        rent: rent,
-        transportation: transportation,
-        entertainment: entertainment,
-        diningOut: diningOut,
-        shopping: shopping,
-        healthcare: healthcare,
-        insurance: insurance,
-        miscellaneous: miscellaneous + subscriptions, // Add subscriptions to misc for now
-        earnings: totalIncome,
-      ));
-    });
-
-    // Sort chronologically
-    result.sort((a, b) => a.date.compareTo(b.date));
-    return result;
   }
 
   void _updateDisplayWindow() {
@@ -225,6 +140,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
   }
 
   Future<void> _handleRefresh() async {
+    if (!mounted) return;
     await _initializeData();
   }
 
@@ -243,7 +159,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
   Future<void> _handleConnectAccount() async {
     try {
       final linkToken = await _plaidService.createLinkToken();
-      if (linkToken != null) {
+      if (linkToken != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please use the dashboard to connect your account'),
@@ -252,12 +168,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -492,14 +410,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
                             await SpendingReportGenerator.generateReport(
                                 monthlySpending, context);
 
-                            if (context.mounted) {
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                     content: Text('Report generated successfully')),
                               );
                             }
                           } catch (e) {
-                            if (context.mounted) {
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                     content: Text('Error generating report: ${e.toString()}')),
@@ -539,10 +457,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       onPressed: selectedMonthIndex > 0
-                          ? () => setState(() {
-                                selectedMonthIndex--;
-                                _updateDisplayWindow();
-                              })
+                          ? () {
+                              if (mounted) {
+                                setState(() {
+                                  selectedMonthIndex--;
+                                  _updateDisplayWindow();
+                                });
+                              }
+                            }
                           : null,
                     ),
                     IconButton(
@@ -550,10 +472,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       onPressed: selectedMonthIndex < monthlySpending.length - 1
-                          ? () => setState(() {
-                                selectedMonthIndex++;
-                                _updateDisplayWindow();
-                              })
+                          ? () {
+                              if (mounted) {
+                                setState(() {
+                                  selectedMonthIndex++;
+                                  _updateDisplayWindow();
+                                });
+                              }
+                            }
                           : null,
                     ),
                   ],
