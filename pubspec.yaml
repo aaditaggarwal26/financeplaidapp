@@ -34,6 +34,7 @@ dependencies:
   flutter_markdown: ^0.7.7
   image_picker: ^1.1.2
   firebase_storage: ^12.4.5
+  flutter_secure_storage: ^9.0.0
   cloud_firestore: ^5.6.6
 
 dev_dependencies:
@@ -56,6 +57,7 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
+    - .env
     - assets/data/monthly_spending_categories.csv
     - assets/data/account_balances.csv
     - assets/data/credit_score.csv

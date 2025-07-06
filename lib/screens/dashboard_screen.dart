@@ -2587,47 +2587,75 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Future<void> _handleAddAccount() async {
+    Future<void> _handleAddAccount() async {
     setState(() {
       _isLoading = true;
     });
     
     try {
+      print('Starting Plaid Link process...');
+      
+      // Create link token with improved error handling
       final linkToken = await _plaidService.createLinkToken();
+      
       if (linkToken == null) {
         setState(() {
           _isLoading = false;
         });
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to create link token'),
+              content: Text('Failed to create link token. Please check your internet connection and try again.'),
               backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
             ),
           );
         }
         return;
       }
       
+      print('Successfully created link token, opening Plaid Link...');
+      
+      // Create and open Plaid Link with the token
       LinkTokenConfiguration configuration = LinkTokenConfiguration(
         token: linkToken,
       );
       
       await PlaidLink.create(configuration: configuration);
       await PlaidLink.open();
+      
+      // Note: Success and error handling is done in the stream listeners
+      // which are set up in _initPlaidListeners()
             
     } catch (e) {
-      print('Error opening Plaid Link: $e');
+      print('Error in _handleAddAccount: $e');
       
       setState(() {
         _isLoading = false;
       });
       
       if (mounted) {
+        String errorMessage = 'Failed to connect account. ';
+        
+        if (e.toString().contains('INVALID_PRODUCT')) {
+          errorMessage += 'Invalid Plaid configuration. Please contact support.';
+        } else if (e.toString().contains('network') || e.toString().contains('connection')) {
+          errorMessage += 'Please check your internet connection.';
+        } else {
+          errorMessage += 'Please try again later.';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _handleAddAccount,
+            ),
           ),
         );
       }

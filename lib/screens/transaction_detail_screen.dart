@@ -191,7 +191,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     );
   }
 
-  // Fixed logo widget that fills the entire container
   Widget _buildMerchantLogo() {
     return Container(
       width: 64,
@@ -205,26 +204,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(15),
-        child: widget.transaction.hasLogo
+        // ENHANCEMENT: Check for a valid logo URL before attempting to display it.
+        child: (widget.transaction.hasLogo && widget.transaction.merchantLogoUrl != null)
             ? Image.network(
                 widget.transaction.merchantLogoUrl!,
-                fit: BoxFit.cover, // This ensures the logo fills the entire container
+                fit: BoxFit.contain, // Use 'contain' to prevent distortion
                 width: 64,
                 height: 64,
+                // FIX: Added a more robust errorBuilder to gracefully handle 404s
+                // and other network errors without polluting the console.
                 errorBuilder: (context, error, stackTrace) {
-                  // Try effective logo as fallback
-                  if (widget.transaction.effectiveLogo != null) {
-                    return Image.network(
-                      widget.transaction.effectiveLogo!,
-                      fit: BoxFit.cover,
-                      width: 64,
-                      height: 64,
-                      errorBuilder: (context, error, stackTrace) {
-                        return _buildFallbackIcon();
-                      },
-                    );
-                  }
-                  return _buildFallbackIcon();
+                  print("Failed to load merchant logo: ${widget.transaction.merchantLogoUrl}");
+                  return _buildFallbackIcon(); // Show a fallback icon on any error
                 },
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
@@ -252,17 +243,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                   );
                 },
               )
-            : widget.transaction.effectiveLogo != null
-                ? Image.network(
-                    widget.transaction.effectiveLogo!,
-                    fit: BoxFit.cover,
-                    width: 64,
-                    height: 64,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _buildFallbackIcon();
-                    },
-                  )
-                : _buildFallbackIcon(),
+            : _buildFallbackIcon(), // Default to fallback icon if no logo URL is present
       ),
     );
   }
@@ -392,14 +373,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                         ),
                         const SizedBox(height: 24),
                         
-                        // Enhanced Merchant Logo and Info with fixed logo display
                         Row(
                           children: [
-                            // Fixed Merchant Logo
                             _buildMerchantLogo(),
                             const SizedBox(width: 16),
                             
-                            // Enhanced Merchant Name and Category
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -506,7 +484,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                         ),
                         const SizedBox(height: 24),
                         
-                        // Transaction Amount
                         Text(
                           widget.transaction.formattedAmount,
                           style: const TextStyle(
@@ -519,12 +496,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                     ),
                   ),
 
-                  // Transaction Details with Enriched Information
                   Expanded(
                     child: ListView(
                       padding: const EdgeInsets.all(20),
                       children: [
-                        // Quick Actions
                         if (widget.transaction.merchantWebsite != null) ...[
                           _buildActionCard(
                             icon: Icons.language,
@@ -535,7 +510,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                           const SizedBox(height: 16),
                         ],
                         
-                        // Enhanced Transaction Details Card
                         _buildDetailCard(
                           title: 'Transaction Details',
                           children: [
@@ -559,7 +533,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                         ),
                         const SizedBox(height: 16),
                         
-                        // Enhanced Merchant Information Card with Plaid Enrich data
                         if (widget.transaction.merchantName != null ||
                             widget.transaction.originalDescription != null ||
                             widget.transaction.merchantDescription != null) ...[
@@ -599,7 +572,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                           const SizedBox(height: 16),
                         ],
                         
-                        // Enhanced Data Quality and Enrichment Card
                         _buildDetailCard(
                           title: 'Data Quality & Enrichment',
                           children: [
@@ -643,7 +615,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                           ],
                         ),
                         
-                        const SizedBox(height: 100), // Extra space for scrolling
+                        const SizedBox(height: 100),
                       ],
                     ),
                   ),
@@ -713,6 +685,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                         fontSize: 14,
                         color: Colors.grey[600],
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
