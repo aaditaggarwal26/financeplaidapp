@@ -29,18 +29,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-    );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
-    
+    _animationController = AnimationController(duration: const Duration(milliseconds: 300), vsync: this);
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
     _animationController.forward();
   }
 
@@ -72,97 +63,52 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
 
   IconData _getCategoryIcon() {
     switch (widget.transaction.category) {
-      case 'Groceries':
-        return Icons.shopping_basket;
-      case 'Utilities':
-        return Icons.power;
-      case 'Rent':
-        return Icons.home;
-      case 'Transportation':
-        return Icons.directions_car;
-      case 'Entertainment':
-        return Icons.movie;
-      case 'Dining Out':
-        return Icons.restaurant;
-      case 'Shopping':
-        return Icons.shopping_bag;
-      case 'Healthcare':
-        return Icons.medical_services;
-      case 'Insurance':
-        return Icons.security;
-      case 'Subscriptions':
-        return Icons.subscriptions;
-      case 'Banking':
-        return Icons.account_balance;
-      case 'Travel':
-        return Icons.flight;
-      case 'Education':
-        return Icons.school;
-      default:
-        return Icons.attach_money;
+      case 'Groceries': return Icons.shopping_basket;
+      case 'Utilities': return Icons.power;
+      case 'Rent': return Icons.home;
+      case 'Transportation': return Icons.directions_car;
+      case 'Entertainment': return Icons.movie;
+      case 'Dining Out': return Icons.restaurant;
+      case 'Shopping': return Icons.shopping_bag;
+      case 'Healthcare': return Icons.medical_services;
+      case 'Insurance': return Icons.security;
+      case 'Subscriptions': return Icons.subscriptions;
+      case 'Banking': return Icons.account_balance;
+      case 'Travel': return Icons.flight;
+      case 'Education': return Icons.school;
+      default: return Icons.attach_money;
     }
   }
 
   Future<void> _launchWebsite() async {
     if (widget.transaction.merchantWebsite != null) {
-      final url = widget.transaction.merchantWebsite!.startsWith('http') 
-          ? widget.transaction.merchantWebsite!
-          : 'https://${widget.transaction.merchantWebsite}';
-      if (await canLaunchUrl(Uri.parse(url))) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      final url = Uri.tryParse(widget.transaction.merchantWebsite!.startsWith('http') ? widget.transaction.merchantWebsite! : 'https://${widget.transaction.merchantWebsite}');
+      if (url != null && await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
       }
     }
   }
 
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Copied to clipboard'),
-        backgroundColor: _getCategoryColor(),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Copied to clipboard'), backgroundColor: _getCategoryColor(), duration: const Duration(seconds: 2)));
   }
 
   Future<void> _deleteTransaction() async {
     if (!widget.transaction.isPersonal || widget.transaction.id == null) return;
-
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() { _isLoading = true; });
 
     try {
-      final dataService = DataService();
-      await dataService.deleteTransaction(widget.transaction.id!);
-
-      if (widget.onDelete != null) {
-        widget.onDelete!();
-      }
-
+      await DataService().deleteTransaction(widget.transaction.id!);
+      if (widget.onDelete != null) widget.onDelete!();
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Transaction deleted successfully'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transaction deleted successfully'), backgroundColor: Colors.green, duration: Duration(seconds: 2)));
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      
+      setState(() { _isLoading = false; });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error deleting transaction: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting transaction: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 3)));
       }
     }
   }
@@ -174,100 +120,45 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         title: const Text('Delete Transaction'),
         content: const Text('Are you sure you want to delete this transaction? This action cannot be undone.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteTransaction();
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () { Navigator.pop(context); _deleteTransaction(); }, style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Delete')),
         ],
       ),
     );
   }
 
   Widget _buildMerchantLogo() {
+    final logoUrl = widget.transaction.effectiveLogo;
     return Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.3),
-          width: 1,
-        ),
-      ),
+      width: 64, height: 64,
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.3), width: 1), color: Colors.white.withOpacity(0.1)),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(15),
-        // ENHANCEMENT: Check for a valid logo URL before attempting to display it.
-        child: (widget.transaction.hasLogo && widget.transaction.merchantLogoUrl != null)
+        child: (logoUrl != null)
             ? Image.network(
-                widget.transaction.merchantLogoUrl!,
-                fit: BoxFit.contain, // Use 'contain' to prevent distortion
-                width: 64,
-                height: 64,
-                // FIX: Added a more robust errorBuilder to gracefully handle 404s
-                // and other network errors without polluting the console.
-                errorBuilder: (context, error, stackTrace) {
-                  print("Failed to load merchant logo: ${widget.transaction.merchantLogoUrl}");
-                  return _buildFallbackIcon(); // Show a fallback icon on any error
-                },
+                logoUrl, fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => _buildFallbackIcon(),
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
-                  return Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      ),
-                    ),
-                  );
+                  return Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2, value: loadingProgress.expectedTotalBytes != null ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes! : null));
                 },
               )
-            : _buildFallbackIcon(), // Default to fallback icon if no logo URL is present
+            : _buildFallbackIcon(),
       ),
     );
   }
 
   Widget _buildFallbackIcon() {
     return Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Icon(
-        _getCategoryIcon(),
-        color: Colors.white,
-        size: 32,
-      ),
+      width: 64, height: 64,
+      decoration: BoxDecoration(color: Colors.transparent, borderRadius: BorderRadius.circular(15)),
+      child: Icon(_getCategoryIcon(), color: Colors.white, size: 32),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final categoryColor = _getCategoryColor();
-
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: AnimatedBuilder(
@@ -279,71 +170,25 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
               position: _slideAnimation,
               child: Column(
                 children: [
-                  // Enhanced Header Section with Plaid Enrich data
                   Container(
-                    padding: EdgeInsets.only(
-                      top: MediaQuery.of(context).padding.top + 20,
-                      bottom: 40,
-                      left: 20,
-                      right: 20,
-                    ),
+                    padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 20, bottom: 40, left: 20, right: 20),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          categoryColor,
-                          categoryColor.withOpacity(0.8),
-                        ],
-                      ),
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(32),
-                        bottomRight: Radius.circular(32),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: categoryColor.withOpacity(0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
+                      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [categoryColor, categoryColor.withOpacity(0.8)]),
+                      borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(32), bottomRight: Radius.circular(32)),
+                      boxShadow: [BoxShadow(color: categoryColor.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
                     ),
                     child: Column(
                       children: [
-                        // Top Bar
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  DateFormat('EEE, MMM d, yyyy').format(widget.transaction.date),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                if (widget.transaction.formattedLocation != null) ...[
+                                Text(DateFormat('EEE, MMM d, yyyy').format(widget.transaction.date), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500)),
+                                if (widget.transaction.location != null) ...[
                                   const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.location_on,
-                                        color: Colors.white70,
-                                        size: 14,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        widget.transaction.formattedLocation!,
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                  Row(children: [ const Icon(Icons.location_on, color: Colors.white70, size: 14), const SizedBox(width: 4), Text(widget.transaction.location!, style: const TextStyle(color: Colors.white70, fontSize: 14))]),
                                 ],
                               ],
                             ),
@@ -351,130 +196,39 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                               children: [
                                 if (widget.transaction.isPersonal && widget.transaction.id != null)
                                   IconButton(
-                                    icon: _isLoading 
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                          ),
-                                        )
-                                      : const Icon(Icons.delete_outline, color: Colors.white),
+                                    icon: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))) : const Icon(Icons.delete_outline, color: Colors.white),
                                     onPressed: _isLoading ? null : _showDeleteConfirmation,
                                   ),
-                                IconButton(
-                                  icon: const Icon(Icons.close, color: Colors.white),
-                                  onPressed: () => Navigator.pop(context),
-                                ),
+                                IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
                               ],
                             ),
                           ],
                         ),
                         const SizedBox(height: 24),
-                        
                         Row(
                           children: [
                             _buildMerchantLogo(),
                             const SizedBox(width: 16),
-                            
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    widget.transaction.displayName,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                  Text(widget.transaction.displayName, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
                                   const SizedBox(height: 4),
                                   Wrap(
-                                    spacing: 8,
-                                    runSpacing: 4,
+                                    spacing: 8, runSpacing: 4,
                                     children: [
                                       Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          widget.transaction.category,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
+                                        child: Text(widget.transaction.category, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
                                       ),
-                                      if (widget.transaction.isRecurring) ...[
+                                      if (widget.transaction.isRecurring)
                                         Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.orange.withOpacity(0.3),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: const Text(
-                                            'RECURRING',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(color: Colors.orange.withOpacity(0.3), borderRadius: BorderRadius.circular(8)),
+                                          child: const Text('RECURRING', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                                         ),
-                                      ],
-                                      if (widget.transaction.isLikelySubscription) ...[
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.purple.withOpacity(0.3),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: const Text(
-                                            'SUBSCRIPTION',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                      if (widget.transaction.confidence != null) ...[
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _getConfidenceColor(widget.transaction.confidence!).withOpacity(0.3),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            widget.transaction.confidenceLevel,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
                                     ],
                                   ),
                                 ],
@@ -483,138 +237,39 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                           ],
                         ),
                         const SizedBox(height: 24),
-                        
-                        Text(
-                          widget.transaction.formattedAmount,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        Text(widget.transaction.formattedAmount, style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
-
                   Expanded(
                     child: ListView(
                       padding: const EdgeInsets.all(20),
                       children: [
                         if (widget.transaction.merchantWebsite != null) ...[
-                          _buildActionCard(
-                            icon: Icons.language,
-                            title: 'Visit Website',
-                            subtitle: widget.transaction.merchantWebsite!,
-                            onTap: _launchWebsite,
-                          ),
+                          _buildActionCard(icon: Icons.language, title: 'Visit Website', subtitle: widget.transaction.merchantWebsite!, onTap: _launchWebsite),
                           const SizedBox(height: 16),
                         ],
-                        
                         _buildDetailCard(
                           title: 'Transaction Details',
                           children: [
-                            _buildDetailItem(
-                              'Description',
-                              widget.transaction.description,
-                              copyable: true,
-                            ),
-                            _buildDetailItem('Account', widget.transaction.account),
+                            _buildDetailItem('Original Description', widget.transaction.originalDescription ?? widget.transaction.description, copyable: true),
+                            _buildDetailItem('Account ID', widget.transaction.account),
                             _buildDetailItem('Transaction Type', widget.transaction.transactionType),
-                            _buildDetailItem(
-                              'Time',
-                              DateFormat('h:mm a').format(widget.transaction.date),
-                            ),
-                            if (widget.transaction.paymentMethod != null)
-                              _buildDetailItem(
-                                'Payment Method',
-                                widget.transaction.paymentMethodDisplay,
-                              ),
+                            _buildDetailItem('Time', DateFormat('h:mm a').format(widget.transaction.date)),
+                            if (widget.transaction.paymentMethod != null) _buildDetailItem('Payment Method', widget.transaction.paymentMethod!),
                           ],
                         ),
                         const SizedBox(height: 16),
-                        
-                        if (widget.transaction.merchantName != null ||
-                            widget.transaction.originalDescription != null ||
-                            widget.transaction.merchantDescription != null) ...[
-                          _buildDetailCard(
-                            title: 'Merchant Information',
-                            children: [
-                              if (widget.transaction.merchantName != null)
-                                _buildDetailItem(
-                                  'Merchant Name',
-                                  widget.transaction.merchantName!,
-                                  copyable: true,
-                                ),
-                              if (widget.transaction.merchantDescription != null)
-                                _buildDetailItem(
-                                  'Merchant Description',
-                                  widget.transaction.merchantDescription!,
-                                ),
-                              if (widget.transaction.originalDescription != null &&
-                                  widget.transaction.originalDescription != widget.transaction.description)
-                                _buildDetailItem(
-                                  'Original Description',
-                                  widget.transaction.originalDescription!,
-                                  copyable: true,
-                                ),
-                              if (widget.transaction.formattedLocation != null)
-                                _buildDetailItem('Location', widget.transaction.formattedLocation!),
-                              if (widget.transaction.merchantWebsite != null)
-                                _buildDetailItem('Website', widget.transaction.merchantWebsite!),
-                              if (widget.transaction.merchantCategories != null && 
-                                  widget.transaction.merchantCategories!.isNotEmpty)
-                                _buildDetailItem(
-                                  'Merchant Categories',
-                                  widget.transaction.merchantCategories!.join(', '),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        
                         _buildDetailCard(
-                          title: 'Data Quality & Enrichment',
+                          title: 'Enrichment Details',
                           children: [
-                            if (widget.transaction.confidence != null)
-                              _buildDetailItem(
-                                'Categorization Confidence',
-                                '${(widget.transaction.confidence! * 100).toStringAsFixed(0)}% (${widget.transaction.confidenceLevel})',
-                              ),
-                            _buildDetailItem(
-                              'Data Source',
-                              widget.transaction.isPersonal ? 'Manual Entry' : 'Bank Import (Plaid)',
-                            ),
-                            if (widget.transaction.plaidCategory != null)
-                              _buildDetailItem(
-                                'Plaid Category',
-                                widget.transaction.plaidCategory!,
-                              ),
-                            if (!widget.transaction.isPersonal) ...[
-                              _buildDetailItem(
-                                'Enrichment Status',
-                                widget.transaction.hasLogo ? 'Fully Enriched' : 'Partially Enriched',
-                              ),
-                              if (widget.transaction.isRecurring)
-                                _buildDetailItem(
-                                  'Recurrence Detected',
-                                  'Yes',
-                                ),
-                              if (widget.transaction.isLikelySubscription)
-                                _buildDetailItem(
-                                  'Subscription Service',
-                                  'Likely subscription or recurring service',
-                                ),
-                            ],
-                            if (widget.transaction.cardId != null)
-                              _buildDetailItem(
-                                'Card Used',
-                                widget.transaction.cardId!.length >= 4
-                                    ? '****${widget.transaction.cardId!.substring(widget.transaction.cardId!.length - 4)}'
-                                    : widget.transaction.cardId!,
-                              ),
+                            if (widget.transaction.merchantName != null && widget.transaction.merchantName != widget.transaction.description) _buildDetailItem('Clean Merchant Name', widget.transaction.merchantName!),
+                            if (widget.transaction.location != null) _buildDetailItem('Location', widget.transaction.location!),
+                            if (widget.transaction.plaidCategory != null) _buildDetailItem('Plaid Category', widget.transaction.plaidCategory!),
+                            if (widget.transaction.confidence != null) _buildDetailItem('Categorization Confidence', '${(widget.transaction.confidence! * 100).toStringAsFixed(0)}%'),
+                            _buildDetailItem('Data Source', widget.transaction.isPersonal ? 'Manual/Scanned' : 'Bank Import (Plaid)'),
                           ],
                         ),
-                        
                         const SizedBox(height: 100),
                       ],
                     ),
@@ -628,26 +283,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     );
   }
 
-  Color _getConfidenceColor(double confidence) {
-    if (confidence >= 0.9) return Colors.green;
-    if (confidence >= 0.7) return Colors.lightGreen;
-    if (confidence >= 0.5) return Colors.orange;
-    if (confidence >= 0.3) return Colors.red;
-    return Colors.grey;
-  }
-
-  Widget _buildActionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildActionCard({required IconData icon, required String title, required String subtitle, required VoidCallback onTap}) {
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
@@ -655,46 +294,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _getCategoryColor().withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: _getCategoryColor(),
-                  size: 24,
-                ),
-              ),
+              Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: _getCategoryColor().withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: _getCategoryColor(), size: 24)),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text(subtitle, style: TextStyle(fontSize: 14, color: Colors.grey[600]), overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: Colors.grey[400],
-              ),
+              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
             ],
           ),
         ),
@@ -703,25 +314,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   }
 
   Widget _buildDetailCard({required String title, required List<Widget> children}) {
+    // Only build the card if there are children to display
+    final visibleChildren = children.where((child) => child is! SizedBox || (child.height != 0 && child.width != 0)).toList();
+    if (visibleChildren.isEmpty) return const SizedBox.shrink();
+    
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2B3A55),
-              ),
-            ),
+            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2B3A55))),
             const SizedBox(height: 16),
             ...children,
           ],
@@ -731,47 +336,22 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   }
 
   Widget _buildDetailItem(String label, String value, {bool copyable = false}) {
+    if (value.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
+          Expanded(flex: 2, child: Text(label, style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500))),
           const SizedBox(width: 16),
           Expanded(
             flex: 3,
             child: Row(
               children: [
-                Expanded(
-                  child: Text(
-                    value,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
+                Expanded(child: Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500), textAlign: TextAlign.right)),
                 if (copyable) ...[
                   const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => _copyToClipboard(value),
-                    child: Icon(
-                      Icons.copy,
-                      size: 16,
-                      color: Colors.grey[500],
-                    ),
-                  ),
+                  GestureDetector(onTap: () => _copyToClipboard(value), child: Icon(Icons.copy, size: 16, color: Colors.grey[500])),
                 ],
               ],
             ),
