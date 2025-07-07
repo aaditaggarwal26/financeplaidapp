@@ -93,13 +93,19 @@ class DataService {
     final exists = await file.exists();
 
     if (!exists) {
-      final String initialData = await rootBundle.loadString(initialAssetPath);
-      await file.writeAsString(initialData);
+      try {
+        final String initialData = await rootBundle.loadString(initialAssetPath);
+        await file.writeAsString(initialData);
+      } catch (e) {
+        // If asset doesn't exist, create empty file with headers
+        await file.writeAsString('Date,Description,Category,Amount,Account,Transaction Type,Card ID,Is Personal,ID,Merchant Name,Logo URL,Website,Location,Confidence,Recurring,Payment Method,Metadata\n');
+      }
     }
   }
 
   Future<void> appendTransaction(Transaction transaction) async {
     try {
+      await _initializeLocalFile();
       final file = await _localFile;
 
       final row = [
@@ -119,7 +125,6 @@ class DataService {
         transaction.confidence?.toString() ?? '',
         transaction.isRecurring.toString(),
         transaction.paymentMethod ?? '',
-        // FIX: Use json.encode for reliable serialization of metadata
         transaction.merchantMetadata != null
             ? json.encode(transaction.merchantMetadata)
             : '',
@@ -138,6 +143,8 @@ class DataService {
   Future<void> deleteTransaction(String id) async {
     try {
       final file = await _localFile;
+      if (!await file.exists()) return;
+      
       final lines = await file.readAsLines();
 
       final updatedLines = lines.where((line) {
@@ -156,7 +163,7 @@ class DataService {
     }
   }
 
-  // Enhanced caching for transactions with receipt filtering
+  // Production-ready transaction fetching - only real data
   Future<List<Transaction>> getTransactions({
     BuildContext? context,
     bool forceRefresh = false,
@@ -178,84 +185,86 @@ class DataService {
 
     List<Transaction> allTransactions = [];
 
-    // First, try to get Plaid transactions if connected
+    // First priority: Get Plaid transactions if connected
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
       if (hasPlaidConnection && context != null) {
-        print('Fetching fresh Plaid transactions...');
+        print('Fetching real-time Plaid transactions...');
         final plaidTransactions = await _plaidService.fetchTransactions(
           context: context,
           startDate: DateTime.now().subtract(const Duration(days: 365)),
           endDate: DateTime.now(),
         );
         allTransactions.addAll(plaidTransactions);
-        print(
-            'Loaded ${plaidTransactions.length} enriched Plaid transactions');
+        print('Loaded ${plaidTransactions.length} enriched Plaid transactions');
       }
     } catch (e) {
-      print('Could not load Plaid transactions: $e');
+      print('Error loading Plaid transactions: $e');
+      // Continue to get local transactions
     }
 
-    // Then get local/manual transactions
+    // Second: Get manually added/scanned transactions
     try {
       await _initializeLocalFile();
       final file = await _localFile;
-      final String data = await file.readAsString();
+      
+      if (await file.exists()) {
+        final String data = await file.readAsString();
 
-      List<List<dynamic>> csvTable = const CsvToListConverter().convert(
-        data,
-        eol: '\n',
-        fieldDelimiter: ',',
-      );
+        List<List<dynamic>> csvTable = const CsvToListConverter().convert(
+          data,
+          eol: '\n',
+          fieldDelimiter: ',',
+        );
 
-      if (csvTable.length > 1) {
-        for (var i = 1; i < csvTable.length; i++) {
-          try {
-            var row = csvTable[i];
-            if (row.length >= 6) {
-              // Parse metadata if present
-              Map<String, dynamic>? metadata;
-              if (row.length >= 17 && row[16].toString().isNotEmpty) {
-                try {
-                  // FIX: Use json.decode for reliable parsing
-                  metadata =
-                      json.decode(row[16].toString()) as Map<String, dynamic>;
-                } catch (e) {
-                  print('Error parsing metadata for row $i: $e');
+        if (csvTable.length > 1) {
+          for (var i = 1; i < csvTable.length; i++) {
+            try {
+              var row = csvTable[i];
+              if (row.length >= 6) {
+                // Parse metadata if present
+                Map<String, dynamic>? metadata;
+                if (row.length >= 17 && row[16].toString().isNotEmpty) {
+                  try {
+                    metadata =
+                        json.decode(row[16].toString()) as Map<String, dynamic>;
+                  } catch (e) {
+                    print('Error parsing metadata for row $i: $e');
+                  }
                 }
-              }
 
-              allTransactions.add(Transaction(
-                date: DateTime.parse(row[0].toString()),
-                description: row[1].toString(),
-                category: row[2].toString(),
-                amount: double.parse(row[3].toString()),
-                account: row[4].toString(),
-                transactionType: row[5].toString(),
-                cardId: row.length >= 7 ? row[6].toString() : null,
-                isPersonal: row.length >= 8
-                    ? row[7].toString().toLowerCase() == 'true'
-                    : false,
-                id: row.length >= 9 ? row[8].toString() : null,
-                merchantName: row.length >= 10 ? row[9].toString() : null,
-                merchantLogoUrl:
-                    row.length >= 11 ? row[10].toString() : null,
-                merchantWebsite:
-                    row.length >= 12 ? row[11].toString() : null,
-                location: row.length >= 13 ? row[12].toString() : null,
-                confidence: row.length >= 14 && row[13].toString().isNotEmpty
-                    ? double.tryParse(row[13].toString())
-                    : null,
-                isRecurring: row.length >= 15
-                    ? row[14].toString().toLowerCase() == 'true'
-                    : false,
-                paymentMethod: row.length >= 16 ? row[15].toString() : null,
-                merchantMetadata: metadata,
-              ));
+                allTransactions.add(Transaction(
+                  date: DateTime.parse(row[0].toString()),
+                  description: row[1].toString(),
+                  category: row[2].toString(),
+                  amount: double.parse(row[3].toString()),
+                  account: row[4].toString(),
+                  transactionType: row[5].toString(),
+                  cardId: row.length >= 7 ? row[6].toString() : null,
+                  isPersonal: row.length >= 8
+                      ? row[7].toString().toLowerCase() == 'true'
+                      : false,
+                  id: row.length >= 9 ? row[8].toString() : null,
+                  merchantName: row.length >= 10 ? row[9].toString() : null,
+                  merchantLogoUrl:
+                      row.length >= 11 ? row[10].toString() : null,
+                  merchantWebsite:
+                      row.length >= 12 ? row[11].toString() : null,
+                  location: row.length >= 13 ? row[12].toString() : null,
+                  confidence: row.length >= 14 && row[13].toString().isNotEmpty
+                      ? double.tryParse(row[13].toString())
+                      : null,
+                  isRecurring: row.length >= 15
+                      ? row[14].toString().toLowerCase() == 'true'
+                      : false,
+                  paymentMethod: row.length >= 16 ? row[15].toString() : null,
+                  merchantMetadata: metadata,
+                ));
+              }
+            } catch (e) {
+              print('Error parsing transaction row $i: $e');
+              continue;
             }
-          } catch (e) {
-            print('Error parsing row $i: $e');
-            continue;
           }
         }
       }
@@ -263,12 +272,14 @@ class DataService {
       print('Error loading local transactions: $e');
     }
 
+    // Sort by date (newest first)
+    allTransactions.sort((a, b) => b.date.compareTo(a.date));
+
     // Update cache
     _cachedTransactions = allTransactions;
     _lastTransactionFetch = DateTime.now();
 
-    return _filterTransactionsByReceipts(
-        allTransactions, showScannedReceipts);
+    return _filterTransactionsByReceipts(allTransactions, showScannedReceipts);
   }
 
   List<Transaction> _filterTransactionsByReceipts(
@@ -298,7 +309,7 @@ class DataService {
     };
   }
 
-  // Cached account balances
+  // Production-ready account balances - only real data
   Future<List<AccountBalance>> getAccountBalances({
     BuildContext? context,
     bool forceRefresh = false,
@@ -314,13 +325,12 @@ class DataService {
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
 
-      List<AccountBalance> balances;
       if (hasPlaidConnection) {
-        print('Fetching fresh Plaid account balances...');
+        print('Fetching real-time Plaid account balances...');
         final plaidBalances = await _plaidService.getAccountBalances();
         final now = DateTime.now();
 
-        balances = [
+        final balances = [
           AccountBalance(
             date: now,
             checking: plaidBalances['checking'] ?? 0,
@@ -330,22 +340,24 @@ class DataService {
             netWorth: plaidBalances['netWorth'] ?? 0,
           )
         ];
+
+        // Update cache
+        _cachedBalances = balances;
+        _lastBalanceFetch = DateTime.now();
+
+        return balances;
       } else {
-        balances = await _getStaticAccountBalances();
+        // Return empty list if no real connection - no fake data
+        print('No Plaid connection available - returning empty balances');
+        return [];
       }
-
-      // Update cache
-      _cachedBalances = balances;
-      _lastBalanceFetch = DateTime.now();
-
-      return balances;
     } catch (e) {
       print('Error loading account balances: $e');
-      return await _getStaticAccountBalances();
+      return [];
     }
   }
 
-  // Cached monthly spending with receipt filtering
+  // Production-ready monthly spending - only real data
   Future<List<MonthlySpending>> getMonthlySpending({
     BuildContext? context,
     bool forceRefresh = false,
@@ -362,18 +374,11 @@ class DataService {
     }
 
     try {
-      final hasPlaidConnection = await _plaidService.hasPlaidConnection();
-
-      List<MonthlySpending> spending;
-      if (hasPlaidConnection && context != null) {
-        print('Generating fresh monthly spending from transactions...');
-        spending = await _getMonthlySpendingFromTransactions(
-          context: context,
-          includeScannedReceipts: showScannedReceipts,
-        );
-      } else {
-        spending = await _getStaticMonthlySpending();
-      }
+      print('Generating monthly spending from real transactions...');
+      final spending = await _getMonthlySpendingFromTransactions(
+        context: context,
+        includeScannedReceipts: showScannedReceipts,
+      );
 
       // Update cache
       _cachedMonthlySpending = spending;
@@ -382,7 +387,7 @@ class DataService {
       return spending;
     } catch (e) {
       print('Error loading monthly spending: $e');
-      return await _getStaticMonthlySpending();
+      return [];
     }
   }
 
@@ -404,46 +409,6 @@ class DataService {
     _lastMonthlySpendingFetch = null;
   }
 
-  Future<List<AccountBalance>> _getStaticAccountBalances() async {
-    try {
-      final String data =
-          await rootBundle.loadString('assets/data/account_balances.csv');
-
-      List<List<dynamic>> csvTable = const CsvToListConverter().convert(
-        data,
-        eol: '\n',
-        fieldDelimiter: ',',
-      );
-
-      List<AccountBalance> balances = [];
-      if (csvTable.length > 1) {
-        for (var i = 1; i < csvTable.length; i++) {
-          try {
-            var row = csvTable[i];
-            if (row.length >= 6) {
-              balances.add(AccountBalance(
-                date: DateTime.parse(row[0].toString()),
-                checking: double.parse(row[1].toString()),
-                creditCardBalance: double.parse(row[2].toString()),
-                savings: double.parse(row[3].toString()),
-                investmentAccount: double.parse(row[4].toString()),
-                netWorth: double.parse(row[5].toString()),
-              ));
-            }
-          } catch (e) {
-            print('Error parsing row $i: $e');
-            continue;
-          }
-        }
-      }
-
-      return balances;
-    } catch (e) {
-      print('Error loading static account balances: $e');
-      return [];
-    }
-  }
-
   Future<List<MonthlySpending>> _getMonthlySpendingFromTransactions({
     BuildContext? context,
     bool includeScannedReceipts = true,
@@ -456,7 +421,7 @@ class DataService {
 
       if (transactions.isEmpty) {
         print('No transactions available for monthly spending calculation');
-        return await _getStaticMonthlySpending();
+        return [];
       }
 
       // Group transactions by month
@@ -557,71 +522,11 @@ class DataService {
       return result;
     } catch (e) {
       print('Error processing transactions to monthly spending: $e');
-      return await _getStaticMonthlySpending();
-    }
-  }
-
-  Future<List<MonthlySpending>> _getStaticMonthlySpending() async {
-    try {
-      final String data = await rootBundle
-          .loadString('assets/data/monthly_spending_categories.csv');
-
-      List<List<dynamic>> csvTable = const CsvToListConverter().convert(
-        data,
-        eol: '\n',
-        fieldDelimiter: ',',
-        shouldParseNumbers: false,
-      );
-
-      List<MonthlySpending> monthlySpending = [];
-
-      if (csvTable.isEmpty) {
-        print('Error: CSV table is empty');
-        return [];
-      }
-
-      for (var i = 1; i < csvTable.length; i++) {
-        try {
-          var row = csvTable[i];
-          if (row.length >= 12) {
-            monthlySpending.add(MonthlySpending(
-              date: DateFormat('yyyy-MM').parse(row[0].toString().trim()),
-              groceries: _parseDouble(row[1].toString().trim()),
-              utilities: _parseDouble(row[2].toString().trim()),
-              rent: _parseDouble(row[3].toString().trim()),
-              transportation: _parseDouble(row[4].toString().trim()),
-              entertainment: _parseDouble(row[5].toString().trim()),
-              diningOut: _parseDouble(row[6].toString().trim()),
-              shopping: _parseDouble(row[7].toString().trim()),
-              healthcare: _parseDouble(row[8].toString().trim()),
-              insurance: _parseDouble(row[9].toString().trim()),
-              miscellaneous: _parseDouble(row[10].toString().trim()),
-              earnings: _parseDouble(row[11].toString().trim()),
-            ));
-          }
-        } catch (e) {
-          print('Error parsing row $i: $e');
-          continue;
-        }
-      }
-
-      return monthlySpending;
-    } catch (e) {
-      print('Error loading static monthly spending: $e');
       return [];
     }
   }
 
-  double _parseDouble(String value) {
-    try {
-      return double.parse(value);
-    } catch (e) {
-      print('Error parsing double value "$value": $e');
-      return 0.0;
-    }
-  }
-
-  // ... rest of the existing methods remain the same with receipt filtering support
+  // Production-ready checking accounts - only real data
   Future<List<CheckingAccount>> getCheckingAccounts(
       {BuildContext? context}) async {
     try {
@@ -646,45 +551,16 @@ class DataService {
 
         return checkingAccounts;
       } else {
-        return await _getStaticCheckingAccounts();
+        print('No Plaid connection - returning empty checking accounts');
+        return [];
       }
     } catch (e) {
       print('Error loading checking accounts: $e');
-      return await _getStaticCheckingAccounts();
-    }
-  }
-
-  Future<List<CheckingAccount>> _getStaticCheckingAccounts() async {
-    try {
-      final String data =
-          await rootBundle.loadString('assets/data/checking_accounts.csv');
-      List<List<dynamic>> csvTable = const CsvToListConverter().convert(
-        data,
-        eol: '\n',
-        fieldDelimiter: ',',
-      );
-
-      List<CheckingAccount> accounts = [];
-      if (csvTable.length > 1) {
-        for (var i = 1; i < csvTable.length; i++) {
-          var row = csvTable[i];
-          accounts.add(CheckingAccount(
-            name: row[0].toString(),
-            accountNumber: row[1].toString(),
-            balance: double.parse(row[2].toString()),
-            type: row[3].toString(),
-            bankName: row[4].toString(),
-          ));
-        }
-      }
-
-      return accounts;
-    } catch (e) {
-      print('Error loading static checking accounts: $e');
       return [];
     }
   }
 
+  // Production-ready credit cards - only real data
   Future<List<CreditCard>> getCreditCards({BuildContext? context}) async {
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
@@ -710,42 +586,11 @@ class DataService {
 
         return creditCards;
       } else {
-        return await _getStaticCreditCards();
+        print('No Plaid connection - returning empty credit cards');
+        return [];
       }
     } catch (e) {
       print('Error loading credit cards: $e');
-      return await _getStaticCreditCards();
-    }
-  }
-
-  Future<List<CreditCard>> _getStaticCreditCards() async {
-    try {
-      final String data =
-          await rootBundle.loadString('assets/data/credit_cards.csv');
-      List<List<dynamic>> csvTable = const CsvToListConverter().convert(
-        data,
-        eol: '\n',
-        fieldDelimiter: ',',
-      );
-
-      List<CreditCard> cards = [];
-      if (csvTable.length > 1) {
-        for (var i = 1; i < csvTable.length; i++) {
-          var row = csvTable[i];
-          cards.add(CreditCard(
-            name: row[0].toString(),
-            lastFour: row[1].toString(),
-            balance: double.parse(row[2].toString()),
-            creditLimit: double.parse(row[3].toString()),
-            apr: double.parse(row[4].toString()),
-            bankName: row[5].toString(),
-          ));
-        }
-      }
-
-      return cards;
-    } catch (e) {
-      print('Error loading static credit cards: $e');
       return [];
     }
   }
@@ -760,15 +605,7 @@ class DataService {
             (balances['savings'] ?? 0) -
             (balances['creditCardBalance'] ?? 0);
       } else {
-        final checkingAccounts = await _getStaticCheckingAccounts();
-        final creditCards = await _getStaticCreditCards();
-
-        double totalChecking =
-            checkingAccounts.fold(0, (sum, account) => sum + account.balance);
-        double totalCredit =
-            creditCards.fold(0, (sum, card) => sum + card.balance);
-
-        return totalChecking - totalCredit;
+        return 0;
       }
     } catch (e) {
       print('Error calculating net cash: $e');

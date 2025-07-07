@@ -36,6 +36,7 @@ class PlaidService {
   // --- In-memory Cache ---
   String? _accessToken;
   List<Map<String, dynamic>>? _cachedAccounts;
+  final Map<String, String?> _logoCache = {};
 
   // --- API Methods ---
 
@@ -104,11 +105,15 @@ class PlaidService {
     bool hasMore = true;
 
     while (hasMore) {
-      // FIX: Ensure options are included to get enriched data
       final body = json.encode({
         'client_id': _plaidClientId, 'secret': _plaidSecret, 'access_token': accessToken,
         'start_date': formattedStartDate, 'end_date': formattedEndDate,
-        'options': {'count': 500, 'offset': offset, 'include_personal_finance_category': true},
+        'options': {
+          'count': 500, 
+          'offset': offset, 
+          'include_personal_finance_category': true,
+          'include_logo_and_counterparty_beta': true, // Enable logo enrichment
+        },
       });
 
       try {
@@ -130,8 +135,11 @@ class PlaidService {
       }
     }
     
-    // Process all transactions in parallel for better performance
-    final processedTransactions = await Future.wait(allPlaidTransactions.map((trx) => _processPlaidTransaction(trx)).toList());
+    // Process all transactions and fetch logos in parallel
+    final processedTransactions = await Future.wait(
+      allPlaidTransactions.map((trx) => _processPlaidTransaction(trx)).toList()
+    );
+    
     return processedTransactions;
   }
 
@@ -195,17 +203,39 @@ class PlaidService {
   Future<app_model.Transaction> _processPlaidTransaction(Map<String, dynamic> trx) async {
     final amount = (trx['amount'] as num?)?.toDouble() ?? 0.0;
     
-    // FIX: Prioritize enriched merchant name, fallback to original name
-    final merchantName = trx['merchant_name'] as String? ?? trx['name'] as String? ?? 'Unknown';
+    // Extract merchant information with fallbacks
+    String merchantName = 'Unknown';
+    String? website;
+    String? logoUrl;
+
+    // Try to get enriched merchant data first
+    if (trx['counterparties'] != null && (trx['counterparties'] as List).isNotEmpty) {
+      final counterparty = (trx['counterparties'] as List)[0];
+      merchantName = counterparty['name'] as String? ?? merchantName;
+      website = counterparty['website'] as String?;
+      logoUrl = counterparty['logo_url'] as String?;
+    }
+
+    // Fallback to merchant_name or original description
+    if (merchantName == 'Unknown') {
+      merchantName = trx['merchant_name'] as String? ?? trx['name'] as String? ?? 'Unknown';
+    }
+
+    // If no website from counterparty, try logo_url or infer from merchant name
+    if (website == null && logoUrl == null) {
+      website = await _inferWebsiteFromMerchant(merchantName);
+    }
+
     final originalDescription = trx['name'] as String? ?? 'Unknown Transaction';
     final date = DateTime.parse(trx['date'] as String);
 
     String category = _mapPlaidCategory(trx);
     double? confidence = (trx['personal_finance_category'] != null) ? 0.9 : (trx['category'] != null ? 0.7 : 0.3);
 
-    // FIX: Prioritize logo from Plaid, then fallback to Clearbit/Favicon
-    final plaidLogoUrl = trx['logo_url'] as String?;
-    final logoUrl = plaidLogoUrl ?? await _getMerchantLogoFromDomain(trx['website'] as String?);
+    // Enhanced logo fetching with multiple fallbacks
+    if (logoUrl == null) {
+      logoUrl = await _getMerchantLogo(merchantName, website);
+    }
     
     return app_model.Transaction(
       id: trx['transaction_id'] as String,
@@ -218,7 +248,7 @@ class PlaidService {
       isPersonal: false,
       merchantName: merchantName,
       merchantLogoUrl: logoUrl,
-      merchantWebsite: trx['website'] as String?,
+      merchantWebsite: website,
       originalDescription: originalDescription,
       plaidCategory: (trx['personal_finance_category']?['detailed'] as String?) ?? (trx['category'] as List?)?.join(', '),
       confidence: confidence,
@@ -229,11 +259,154 @@ class PlaidService {
     );
   }
 
+  // Enhanced logo fetching with multiple services and caching
+  Future<String?> _getMerchantLogo(String merchantName, String? website) async {
+    final cacheKey = website ?? merchantName.toLowerCase();
+    
+    // Check cache first
+    if (_logoCache.containsKey(cacheKey)) {
+      return _logoCache[cacheKey];
+    }
+
+    String? logoUrl;
+
+    // Try multiple approaches to get logos
+    if (website != null && website.isNotEmpty) {
+      logoUrl = await _tryMultipleLogoServices(website);
+    }
+
+    // If no website or logo found, try to infer website from merchant name
+    if (logoUrl == null) {
+      final inferredWebsite = await _inferWebsiteFromMerchant(merchantName);
+      if (inferredWebsite != null) {
+        logoUrl = await _tryMultipleLogoServices(inferredWebsite);
+      }
+    }
+
+    // Cache the result (even if null to avoid repeated failed attempts)
+    _logoCache[cacheKey] = logoUrl;
+    
+    return logoUrl;
+  }
+
+  Future<String?> _tryMultipleLogoServices(String website) async {
+    final domain = _extractDomain(website);
+    if (domain.isEmpty) return null;
+
+    final logoServices = [
+      'https://logo.clearbit.com/$domain',
+      'https://www.google.com/s2/favicons?domain=$domain&sz=64',
+      'https://logo.uplead.com/$domain',
+      'https://img.logo.dev/$domain?token=pk_X5dCdDzSSO6vDudH5weAAg', // Alternative service
+    ];
+
+    for (final logoUrl in logoServices) {
+      try {
+        final response = await http.head(Uri.parse(logoUrl))
+            .timeout(const Duration(seconds: 3));
+        
+        if (response.statusCode == 200) {
+          // Additional check: make sure it's actually an image
+          final contentType = response.headers['content-type'] ?? '';
+          if (contentType.startsWith('image/')) {
+            print('Found logo for $domain: $logoUrl');
+            return logoUrl;
+          }
+        }
+      } catch (e) {
+        // Continue to next service
+        continue;
+      }
+    }
+
+    // Last resort: Google favicon (almost always works)
+    return 'https://www.google.com/s2/favicons?domain=$domain&sz=32';
+  }
+
+  String _extractDomain(String website) {
+    try {
+      // Remove protocol and www
+      String domain = website
+          .replaceAll(RegExp(r'https?://'), '')
+          .replaceAll(RegExp(r'^www\.'), '')
+          .split('/')[0]
+          .split('?')[0];
+      
+      return domain.toLowerCase();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  Future<String?> _inferWebsiteFromMerchant(String merchantName) async {
+    // Common merchant mappings
+    final merchantMap = {
+      'starbucks': 'starbucks.com',
+      'amazon': 'amazon.com',
+      'target': 'target.com',
+      'walmart': 'walmart.com',
+      'mcdonalds': 'mcdonalds.com',
+      'apple': 'apple.com',
+      'google': 'google.com',
+      'microsoft': 'microsoft.com',
+      'netflix': 'netflix.com',
+      'spotify': 'spotify.com',
+      'uber': 'uber.com',
+      'lyft': 'lyft.com',
+      'airbnb': 'airbnb.com',
+      'paypal': 'paypal.com',
+      'venmo': 'venmo.com',
+      'chase': 'chase.com',
+      'wells fargo': 'wellsfargo.com',
+      'bank of america': 'bankofamerica.com',
+      'whole foods': 'wholefoodsmarket.com',
+      'costco': 'costco.com',
+      'home depot': 'homedepot.com',
+      'lowes': 'lowes.com',
+      'best buy': 'bestbuy.com',
+      'cvs': 'cvs.com',
+      'walgreens': 'walgreens.com',
+      'rite aid': 'riteaid.com',
+      'shell': 'shell.com',
+      'exxon': 'exxon.com',
+      'chevron': 'chevron.com',
+      'bp': 'bp.com',
+      'mobil': 'mobil.com',
+      'dunkin': 'dunkindonuts.com',
+      'subway': 'subway.com',
+      'chipotle': 'chipotle.com',
+    };
+
+    final cleanName = merchantName.toLowerCase()
+        .replaceAll(RegExp(r'[^a-z\s]'), '') // Remove special characters
+        .trim();
+
+    // Direct match
+    if (merchantMap.containsKey(cleanName)) {
+      return merchantMap[cleanName];
+    }
+
+    // Partial match
+    for (final entry in merchantMap.entries) {
+      if (cleanName.contains(entry.key) || entry.key.contains(cleanName)) {
+        return entry.value;
+      }
+    }
+
+    // Try simple heuristic: merchantname.com
+    if (cleanName.isNotEmpty && !cleanName.contains(' ')) {
+      return '$cleanName.com';
+    }
+
+    return null;
+  }
+
   String _mapPlaidCategory(Map<String, dynamic> trx) {
     if (trx['personal_finance_category'] != null) {
       final pfc = trx['personal_finance_category'];
       final primary = pfc['primary']?.toString().toLowerCase() ?? '';
       final detailed = pfc['detailed']?.toString().toLowerCase() ?? '';
+      
       if (primary.contains('food_and_drink')) return detailed.contains('groceries') ? 'Groceries' : 'Dining Out';
       if (primary.contains('transportation')) return 'Transportation';
       if (primary.contains('shops')) return 'Shopping';
@@ -276,23 +449,6 @@ class PlaidService {
     }
     return null;
   }
-  
-  // FIX: Updated logo fetching to use a domain directly, which is more reliable.
-  Future<String?> _getMerchantLogoFromDomain(String? website) async {
-    if (website == null || website.isEmpty) return null;
-    final domain = website.replaceAll(RegExp(r'https?://'), '').split('/').first;
-    if (domain.isEmpty) return null;
-
-    try {
-      final logoUrl = 'https://logo.clearbit.com/$domain';
-      final response = await http.head(Uri.parse(logoUrl)).timeout(const Duration(seconds: 2));
-      if (response.statusCode == 200) return logoUrl;
-    } catch (e) {
-      // Fallback to favicon if Clearbit fails
-      return 'https://www.google.com/s2/favicons?domain=$domain&sz=64';
-    }
-    return 'https://www.google.com/s2/favicons?domain=$domain&sz=64';
-  }
 
   // --- Helper Methods ---
 
@@ -302,7 +458,9 @@ class PlaidService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_ITEM_ID_KEY, itemId);
       _accessToken = accessToken;
-    } catch (e) { print('PlaidService Exception (_saveAccessToken): $e'); }
+    } catch (e) { 
+      print('PlaidService Exception (_saveAccessToken): $e'); 
+    }
   }
 
   Future<String?> _getAccessToken() async {
@@ -319,5 +477,11 @@ class PlaidService {
   Future<bool> hasPlaidConnection() async {
     final token = await _getAccessToken();
     return token != null && token.isNotEmpty;
+  }
+
+  // Clear caches when needed
+  void clearCaches() {
+    _cachedAccounts = null;
+    _logoCache.clear();
   }
 }
