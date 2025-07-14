@@ -12,7 +12,6 @@ class PlaidService {
   // Plaid configuration read from .env file
   static String get _plaidClientId => dotenv.env['PLAID_CLIENT_ID'] ?? '';
   static String get _plaidSecret => dotenv.env['PLAID_SECRET'] ?? '';
-  // Reads the environment from your .env file. Defaults to 'sandbox' if not set.
   static String get _plaidEnv => dotenv.env['PLAID_ENV'] ?? 'sandbox'; 
   
   static String get _plaidBaseUrl {
@@ -28,13 +27,13 @@ class PlaidService {
   }
   
   static List<String> get _plaidProducts => 
-    (dotenv.env['PLAID_PRODUCTS'] ?? 'auth,transactions,identity,assets')
+    (dotenv.env['PLAID_PRODUCTS'] ?? 'transactions,auth')
       .split(',')
       .map((p) => p.trim())
       .toList();
       
   static List<String> get _plaidCountryCodes => 
-    (dotenv.env['PLAID_COUNTRY_CODES'] ?? 'US,CA')
+    (dotenv.env['PLAID_COUNTRY_CODES'] ?? 'US')
       .split(',')
       .map((c) => c.trim())
       .toList();
@@ -73,34 +72,12 @@ class PlaidService {
     return true;
   }
 
-  /// Test network connectivity to Plaid servers
-  Future<bool> testConnectivity() async {
-    try {
-      print('Testing connectivity to $_plaidBaseUrl...');
-      final response = await http.get(
-        Uri.parse(_plaidBaseUrl),
-        headers: {'User-Agent': 'FinSight/1.0.0'},
-      ).timeout(const Duration(seconds: 10));
-      
-      print('Connectivity test result: ${response.statusCode}');
-      return response.statusCode < 500; // Any response means we can reach the server
-    } catch (e) {
-      print('Connectivity test failed: $e');
-      return false;
-    }
-  }
-
   /// Creates a link token for Plaid Link initialization
   Future<String?> createLinkToken() async {
+    print('=== PlaidService: createLinkToken called ===');
+    
     if (!_validateConfiguration()) {
       throw PlaidException('INVALID_CONFIG', 'Plaid configuration is invalid. Please check your .env file.');
-    }
-
-    // Test connectivity first
-    print('Testing network connectivity to Plaid...');
-    final canConnect = await testConnectivity();
-    if (!canConnect) {
-      throw PlaidException('CONNECTIVITY_TEST_FAILED', 'Cannot reach Plaid servers. Please check your internet connection and try a different network.');
     }
 
     final userId = FirebaseAuth.instance.currentUser?.uid ?? 
@@ -128,23 +105,9 @@ class PlaidService {
       'products': _plaidProducts,
       'country_codes': _plaidCountryCodes,
       'language': 'en',
-      'webhook': null, // Add webhook URL for production
-      'link_customization_name': null,
+      'webhook': null,
       if (redirectUri != null && redirectUri.isNotEmpty) 
         'redirect_uri': redirectUri,
-      // Basic account filters for development
-      'account_filters': {
-        'depository': {
-          'account_subtypes': ['checking', 'savings'],
-        },
-        'credit': {
-          'account_subtypes': ['credit card'],
-        },
-      },
-      // Only request identity if it's in the products list
-      if (_plaidProducts.contains('identity'))
-        'required_if_supported_products': ['identity'],
-      // Remove optional products that might cause issues
     };
 
     try {
@@ -167,22 +130,15 @@ class PlaidService {
         print('PlaidService Error (createLinkToken): ${response.statusCode}');
         print('Response body: ${response.body}');
         
-        // Parse error response for better error messages
         try {
           final errorData = json.decode(response.body);
           final errorCode = errorData['error_code'] ?? 'UNKNOWN_ERROR';
           final errorMessage = errorData['error_message'] ?? 'Failed to create link token';
-          final errorType = errorData['error_type'] ?? 'UNKNOWN';
           
-          // Provide specific error messages for common issues
           if (errorCode == 'INVALID_CREDENTIALS') {
             throw PlaidException(errorCode, 'Invalid Plaid credentials. Please check your Client ID and Secret in the .env file.');
           } else if (errorCode == 'INVALID_PRODUCT') {
             throw PlaidException(errorCode, 'Invalid product configuration. Your account may not have access to the requested products.');
-          } else if (errorCode == 'INVALID_CLIENT') {
-            throw PlaidException(errorCode, 'Invalid client configuration. Please verify your Plaid account setup.');
-          } else if (errorType == 'INVALID_REQUEST') {
-            throw PlaidException(errorCode, 'Invalid request: $errorMessage');
           }
           
           throw PlaidException(errorCode, errorMessage);
@@ -191,25 +147,25 @@ class PlaidService {
           throw PlaidException('PARSE_ERROR', 'Failed to parse error response: ${response.body}');
         }
       }
-    } on http.ClientException catch (e) {
-      print('PlaidService ClientException: $e');
-      if (e.message.contains('Failed host lookup')) {
-        throw PlaidException('DNS_ERROR', 'Cannot resolve Plaid servers. This could be due to:\n• Network connectivity issues\n• VPN/Proxy blocking Plaid\n• DNS server problems\n\nTry:\n• Switch to cellular data or different WiFi\n• Turn off VPN\n• Restart your device');
-      } else if (e.message.contains('Connection refused')) {
-        throw PlaidException('CONNECTION_ERROR', 'Connection refused by Plaid servers. Try again in a few minutes.');
-      } else if (e.message.contains('Connection timed out')) {
-        throw PlaidException('TIMEOUT_ERROR', 'Connection timed out. Check your internet speed and try again.');
-      }
-      throw PlaidException('NETWORK_ERROR', 'Network error: ${e.message}\n\nTry switching networks or check your internet connection.');
     } catch (e) {
       print('PlaidService Exception (createLinkToken): $e');
       if (e is PlaidException) rethrow;
+      
+      if (e.toString().contains('Failed host lookup') || 
+          e.toString().contains('No address associated with hostname')) {
+        throw PlaidException('NETWORK_ERROR', 'Cannot connect to Plaid servers. Please check your internet connection and try again.');
+      } else if (e.toString().contains('Connection timed out')) {
+        throw PlaidException('TIMEOUT_ERROR', 'Connection timed out. Please try again.');
+      }
+      
       throw PlaidException('UNEXPECTED_ERROR', 'Unexpected error: ${e.toString()}');
     }
   }
 
   /// Exchanges public token for access token
   Future<bool> exchangePublicToken(String publicToken) async {
+    print('=== PlaidService: exchangePublicToken called ===');
+    
     if (!_validateConfiguration()) {
       return false;
     }
@@ -242,7 +198,6 @@ class PlaidService {
         await _saveAccessToken(data['access_token'], data['item_id']);
         print('Access token exchanged successfully');
         
-        // Record successful sync
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_LAST_SUCCESSFUL_SYNC_KEY, DateTime.now().toIso8601String());
         
@@ -250,19 +205,8 @@ class PlaidService {
       } else {
         print('PlaidService Error (exchangePublicToken): ${response.statusCode}');
         print('Response body: ${response.body}');
-        
-        try {
-          final errorData = json.decode(response.body);
-          print('Error details: ${errorData['error_code']} - ${errorData['error_message']}');
-        } catch (e) {
-          print('Could not parse error response');
-        }
-        
         return false;
       }
-    } on http.ClientException catch (e) {
-      print('PlaidService ClientException (exchangePublicToken): $e');
-      return false;
     } catch (e) {
       print('PlaidService Exception (exchangePublicToken): $e');
       return false;
@@ -276,13 +220,16 @@ class PlaidService {
     DateTime? endDate,
     bool forceRefresh = false,
   }) async {
+    print('=== PlaidService: fetchTransactions called ===');
+    
     final accessToken = await _getAccessToken();
     if (accessToken == null) {
+      print('No access token found');
       throw PlaidException('NO_ACCESS_TOKEN', 'No Plaid connection found. Please connect your account first.');
     }
 
     final now = DateTime.now();
-    final start = startDate ?? now.subtract(const Duration(days: 365)); // Get last year by default
+    final start = startDate ?? now.subtract(const Duration(days: 365));
     final end = endDate ?? now;
     final formattedStartDate = DateFormat('yyyy-MM-dd').format(start);
     final formattedEndDate = DateFormat('yyyy-MM-dd').format(end);
@@ -298,9 +245,9 @@ class PlaidService {
     int offset = 0;
     bool hasMore = true;
     int totalFetched = 0;
-    const int maxTransactions = 2000; // Reasonable limit for mobile app
+    const int maxTransactions = 2000;
 
-    print('Fetching real transactions from $_plaidEnv environment...');
+    print('Fetching transactions from $_plaidEnv environment...');
     print('Date range: $formattedStartDate to $formattedEndDate');
 
     while (hasMore && totalFetched < maxTransactions) {
@@ -315,7 +262,6 @@ class PlaidService {
           'offset': offset,
           'include_personal_finance_category': true,
           'include_original_description': true,
-          'include_personal_finance_category_icon_url': true,
         },
       });
 
@@ -343,7 +289,6 @@ class PlaidService {
           
           final errorData = json.decode(response.body);
           
-          // Handle specific Plaid errors
           if (response.statusCode == 400) {
             final errorCode = errorData['error_code'];
             if (errorCode == 'ITEM_LOGIN_REQUIRED') {
@@ -356,34 +301,33 @@ class PlaidService {
             errorData['error_message'] ?? 'Failed to fetch transactions from Plaid',
           );
         }
-      } on http.ClientException catch (e) {
-        print('PlaidService ClientException (fetchTransactions): $e');
-        if (e.message.contains('Failed host lookup')) {
-          throw PlaidException('DNS_ERROR', 'Cannot resolve Plaid servers. Please check your internet connection.');
-        }
-        throw PlaidException('NETWORK_ERROR', 'Network error: ${e.message}');
       } catch (e) {
         print('PlaidService Exception (fetchTransactions): $e');
         if (e is PlaidException) rethrow;
-        throw PlaidException('UNEXPECTED_ERROR', 'Unexpected error: ${e.toString()}');
+        
+        if (e.toString().contains('Failed host lookup')) {
+          throw PlaidException('DNS_ERROR', 'Cannot resolve Plaid servers. Please check your internet connection.');
+        }
+        throw PlaidException('NETWORK_ERROR', 'Network error: ${e.toString()}');
       }
     }
     
-    print('Processing ${allPlaidTransactions.length} real transactions...');
+    print('Processing ${allPlaidTransactions.length} transactions...');
     final processedTransactions = await Future.wait(
       allPlaidTransactions.map((trx) => _processPlaidTransaction(trx)).toList()
     );
     
-    // Update last successful sync
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_LAST_SUCCESSFUL_SYNC_KEY, DateTime.now().toIso8601String());
     
-    print('Successfully processed ${processedTransactions.length} real transactions');
+    print('Successfully processed ${processedTransactions.length} transactions');
     return processedTransactions;
   }
 
   /// Gets real account information from connected banks
   Future<List<Map<String, dynamic>>> getAccounts(BuildContext context, {bool forceRefresh = false}) async {
+    print('=== PlaidService: getAccounts called ===');
+    
     if (!forceRefresh && _cachedAccounts != null) {
       print('Returning cached account data');
       return _cachedAccounts!;
@@ -405,9 +349,6 @@ class PlaidService {
       'client_id': _plaidClientId,
       'secret': _plaidSecret,
       'access_token': accessToken,
-      'options': {
-        'account_ids': null, // Get all accounts
-      },
     });
 
     try {
@@ -423,14 +364,13 @@ class PlaidService {
         final item = data['item'] as Map<String, dynamic>?;
         final institutionId = item?['institution_id'] ?? 'Unknown';
         
-        // Enhance account data with institution info
         for (var acc in accounts) {
           acc['institution'] = institutionId;
           acc['last_update'] = DateTime.now().toIso8601String();
         }
         
         _cachedAccounts = accounts;
-        print('Fetched ${accounts.length} real accounts from connected institutions');
+        print('Fetched ${accounts.length} accounts from connected institutions');
         return accounts;
       } else {
         print('PlaidService Error (getAccounts): ${response.statusCode}');
@@ -442,23 +382,24 @@ class PlaidService {
           errorData['error_message'] ?? 'Failed to fetch accounts',
         );
       }
-    } on http.ClientException catch (e) {
-      print('PlaidService ClientException (getAccounts): $e');
-      if (e.message.contains('Failed host lookup')) {
-        throw PlaidException('DNS_ERROR', 'Cannot resolve Plaid servers. Please check your internet connection.');
-      }
-      throw PlaidException('NETWORK_ERROR', 'Network error: ${e.message}');
     } catch (e) {
       print('PlaidService Exception (getAccounts): $e');
       if (e is PlaidException) rethrow;
-      throw PlaidException('UNEXPECTED_ERROR', 'Unexpected error: ${e.toString()}');
+      
+      if (e.toString().contains('Failed host lookup')) {
+        throw PlaidException('DNS_ERROR', 'Cannot resolve Plaid servers. Please check your internet connection.');
+      }
+      throw PlaidException('NETWORK_ERROR', 'Network error: ${e.toString()}');
     }
   }
 
   /// Gets real-time account balances
   Future<Map<String, double>> getAccountBalances({bool forceRefresh = false}) async {
+    print('=== PlaidService: getAccountBalances called ===');
+    
     try {
-      final accounts = await getAccounts(WidgetsBinding.instance.rootElement!, forceRefresh: forceRefresh);
+      // Get a temporary context - we'll handle this more gracefully
+      final accounts = await _getAccountsWithoutContext(forceRefresh: forceRefresh);
       
       double checking = 0, savings = 0, creditCardBalance = 0, investment = 0;
 
@@ -480,11 +421,11 @@ class PlaidService {
             } else if (subtype == 'savings') {
               savings += available ?? balance;
             } else {
-              checking += available ?? balance; // Default to checking
+              checking += available ?? balance;
             }
             break;
           case 'credit':
-            creditCardBalance += balance.abs(); // Credit card balances are typically negative
+            creditCardBalance += balance.abs();
             break;
           case 'investment':
             investment += balance;
@@ -494,7 +435,7 @@ class PlaidService {
       
       final netWorth = checking + savings + investment - creditCardBalance;
       
-      print('Real Account Balances:');
+      print('Account Balances:');
       print('  Checking: \$${checking.toStringAsFixed(2)}');
       print('  Savings: \$${savings.toStringAsFixed(2)}');
       print('  Credit Cards: \$${creditCardBalance.toStringAsFixed(2)}');
@@ -509,8 +450,49 @@ class PlaidService {
         'netWorth': netWorth,
       };
     } catch (e) {
-      print('Error getting real account balances: $e');
+      print('Error getting account balances: $e');
       rethrow;
+    }
+  }
+
+  /// Helper method to get accounts without requiring context
+  Future<List<Map<String, dynamic>>> _getAccountsWithoutContext({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedAccounts != null) {
+      return _cachedAccounts!;
+    }
+    
+    final accessToken = await _getAccessToken();
+    if (accessToken == null) {
+      throw PlaidException('NO_ACCESS_TOKEN', 'No Plaid connection found');
+    }
+
+    final url = Uri.parse('$_plaidBaseUrl/accounts/get');
+    final headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'FinSight/1.0.0',
+      'Plaid-Version': '2020-09-14',
+    };
+    
+    final body = json.encode({
+      'client_id': _plaidClientId,
+      'secret': _plaidSecret,
+      'access_token': accessToken,
+    });
+
+    try {
+      final response = await http.post(url, headers: headers, body: body).timeout(const Duration(seconds: 30));
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final accounts = List<Map<String, dynamic>>.from(data['accounts'] ?? []);
+        _cachedAccounts = accounts;
+        return accounts;
+      } else {
+        throw PlaidException('API_ERROR', 'Failed to fetch accounts');
+      }
+    } catch (e) {
+      if (e is PlaidException) rethrow;
+      throw PlaidException('NETWORK_ERROR', 'Network error: ${e.toString()}');
     }
   }
 
@@ -523,20 +505,15 @@ class PlaidService {
     final date = DateTime.parse(trx['date'] as String);
     final accountId = trx['account_id'] as String? ?? 'Unknown';
 
-    // Enhanced category mapping using Plaid's personal finance categories
-    String category = _mapPlaidCategoryEnhanced(trx);
+    String category = _mapPlaidCategory(trx);
     double confidence = _calculateCategoryConfidence(trx);
 
-    // Enhanced logo fetching
     final plaidLogoUrl = trx['logo_url'] as String?;
     final website = trx['website'] as String?;
     final logoUrl = plaidLogoUrl ?? await _getMerchantLogo(merchantName, website);
     
-    // Enhanced location extraction
-    final location = _extractLocationEnhanced(trx);
-    
-    // Detect if this is a recurring transaction
-    final isRecurring = _detectRecurringTransactionEnhanced(trx, originalDescription);
+    final location = _extractLocation(trx);
+    final isRecurring = _detectRecurringTransaction(trx, originalDescription);
     
     return app_model.Transaction(
       id: trx['transaction_id'] as String,
@@ -546,7 +523,7 @@ class PlaidService {
       amount: amount.abs(),
       account: accountId,
       transactionType: amount < 0 ? 'Debit' : 'Credit',
-      isPersonal: false, // All Plaid transactions are bank transactions
+      isPersonal: false,
       merchantName: merchantName,
       merchantLogoUrl: logoUrl,
       merchantWebsite: website,
@@ -562,14 +539,12 @@ class PlaidService {
   }
 
   /// Enhanced category mapping using Plaid's personal finance categories
-  String _mapPlaidCategoryEnhanced(Map<String, dynamic> trx) {
-    // First try Plaid's personal finance category (most accurate)
+  String _mapPlaidCategory(Map<String, dynamic> trx) {
     if (trx['personal_finance_category'] != null) {
       final pfc = trx['personal_finance_category'];
       final primary = pfc['primary']?.toString().toLowerCase() ?? '';
       final detailed = pfc['detailed']?.toString().toLowerCase() ?? '';
       
-      // Map Plaid categories to our app categories
       if (primary.contains('food_and_drink')) {
         if (detailed.contains('groceries') || detailed.contains('supermarkets')) {
           return 'Groceries';
@@ -581,7 +556,7 @@ class PlaidService {
       if (primary.contains('shops') || primary.contains('retail')) return 'Shopping';
       if (primary.contains('medical') || primary.contains('healthcare')) return 'Healthcare';
       if (primary.contains('recreation') || primary.contains('entertainment')) return 'Entertainment';
-      if (primary.contains('travel')) return 'Transportation'; // Map travel to transportation
+      if (primary.contains('travel')) return 'Transportation';
       
       if (primary.contains('rent_and_utilities')) {
         if (detailed.contains('rent') || detailed.contains('mortgage')) return 'Rent';
@@ -595,7 +570,6 @@ class PlaidService {
       return 'Miscellaneous';
     }
     
-    // Fallback to legacy category array
     if (trx['category'] is List) {
       final categories = (trx['category'] as List).map((c) => c.toString().toLowerCase()).toList();
       
@@ -614,22 +588,18 @@ class PlaidService {
       if (categories.any((c) => ['rent', 'mortgage'].contains(c))) return 'Rent';
     }
     
-    // Final fallback: analyze description
     return _categorizeByDescription(trx['name'] ?? '');
   }
 
-  /// Calculate confidence score for categorization
   double _calculateCategoryConfidence(Map<String, dynamic> trx) {
-    double confidence = 0.3; // Base confidence
+    double confidence = 0.3;
     
-    // Higher confidence if we have personal finance category
     if (trx['personal_finance_category'] != null) {
       confidence = 0.9;
     } else if (trx['category'] != null && (trx['category'] as List).isNotEmpty) {
       confidence = 0.7;
     }
     
-    // Boost confidence if we have merchant info
     if (trx['merchant_name'] != null && (trx['merchant_name'] as String).isNotEmpty) {
       confidence = (confidence + 0.1).clamp(0.0, 1.0);
     }
@@ -637,30 +607,22 @@ class PlaidService {
     return confidence;
   }
 
-  /// Enhanced location extraction
-  String? _extractLocationEnhanced(Map<String, dynamic> transaction) {
+  String? _extractLocation(Map<String, dynamic> transaction) {
     final location = transaction['location'] as Map<String, dynamic>?;
     if (location != null) {
-      final address = location['address'] as String?;
       final city = location['city'] as String?;
       final region = location['region'] as String?;
-      final country = location['country'] as String?;
       
-      // Build location string from available parts
       final parts = <String>[];
       if (city != null && city.isNotEmpty) parts.add(city);
       if (region != null && region.isNotEmpty) parts.add(region);
-      if (country != null && country.isNotEmpty && country != 'US') parts.add(country);
       
       if (parts.isNotEmpty) return parts.join(', ');
-      if (address != null && address.isNotEmpty) return address;
     }
     return null;
   }
 
-  /// Enhanced recurring transaction detection
-  bool _detectRecurringTransactionEnhanced(Map<String, dynamic> trx, String description) {
-    // Check if Plaid has marked this as recurring
+  bool _detectRecurringTransaction(Map<String, dynamic> trx, String description) {
     final personalFinanceCategory = trx['personal_finance_category'] as Map<String, dynamic>?;
     if (personalFinanceCategory != null) {
       final detailed = personalFinanceCategory['detailed']?.toString().toLowerCase() ?? '';
@@ -671,7 +633,6 @@ class PlaidService {
       }
     }
     
-    // Check description for recurring patterns
     final d = description.toLowerCase();
     return d.contains('subscription') || 
            d.contains('monthly') || 
@@ -679,7 +640,6 @@ class PlaidService {
            _isKnownRecurringMerchant(d);
   }
 
-  /// Check if merchant is known to be recurring
   bool _isKnownRecurringMerchant(String description) {
     final knownRecurring = [
       'netflix', 'spotify', 'amazon prime', 'hulu', 'disney', 'apple music', 
@@ -691,62 +651,52 @@ class PlaidService {
     return knownRecurring.any((pattern) => description.contains(pattern));
   }
 
-  /// Extract clean merchant name from description
   String _extractMerchantFromDescription(String description) {
-    // Remove common transaction codes and IDs
     String cleaned = description
-        .replaceAll(RegExp(r'#\d+'), '') // Remove #numbers
-        .replaceAll(RegExp(r'\d{4}\*+\d{4}'), '') // Remove card numbers
-        .replaceAll(RegExp(r'[A-Z]{2}\d+'), '') // Remove state/country codes
+        .replaceAll(RegExp(r'#\d+'), '')
+        .replaceAll(RegExp(r'\d{4}\*+\d{4}'), '')
+        .replaceAll(RegExp(r'[A-Z]{2}\d+'), '')
         .trim();
     
-    // Take first meaningful part
     final parts = cleaned.split(RegExp(r'\s+'));
     if (parts.isNotEmpty) {
-      return parts.take(3).join(' ').trim(); // Take first 3 words max
+      return parts.take(3).join(' ').trim();
     }
     
     return cleaned.isNotEmpty ? cleaned : description;
   }
 
-  /// Categorize transaction by description analysis
   String _categorizeByDescription(String description) {
     final d = description.toLowerCase();
     
-    // Grocery stores
     if (d.contains('grocery') || d.contains('market') || d.contains('supermarket') ||
         d.contains('whole foods') || d.contains('trader joe') || d.contains('safeway') ||
         d.contains('kroger') || d.contains('walmart') || d.contains('target')) {
       return 'Groceries';
     }
     
-    // Restaurants and dining
     if (d.contains('restaurant') || d.contains('coffee') || d.contains('starbucks') ||
         d.contains('mcdonald') || d.contains('subway') || d.contains('pizza') ||
         d.contains('taco') || d.contains('burger')) {
       return 'Dining Out';
     }
     
-    // Transportation
     if (d.contains('gas') || d.contains('fuel') || d.contains('uber') || 
         d.contains('lyft') || d.contains('parking') || d.contains('metro') ||
         d.contains('taxi') || d.contains('transportation')) {
       return 'Transportation';
     }
     
-    // Shopping
     if (d.contains('amazon') || d.contains('ebay') || d.contains('best buy') ||
         d.contains('clothing') || d.contains('mall') || d.contains('store')) {
       return 'Shopping';
     }
     
-    // Subscriptions
     if (d.contains('subscription') || d.contains('netflix') || d.contains('spotify') ||
         d.contains('hulu') || d.contains('disney') || d.contains('prime')) {
       return 'Subscriptions';
     }
     
-    // Utilities
     if (d.contains('electric') || d.contains('gas bill') || d.contains('water') ||
         d.contains('utility') || d.contains('internet') || d.contains('phone')) {
       return 'Utilities';
@@ -755,52 +705,24 @@ class PlaidService {
     return 'Miscellaneous';
   }
   
-  /// Enhanced merchant logo fetching
   Future<String?> _getMerchantLogo(String merchantName, String? website) async {
     final cacheKey = website ?? merchantName.toLowerCase();
     if (_logoCache.containsKey(cacheKey)) return _logoCache[cacheKey];
 
     String? logoUrl;
     
-    // Try website-based logo services
     if (website != null && website.isNotEmpty) {
       final domain = _extractDomain(website);
-      logoUrl = await _tryLogoService('https://logo.clearbit.com/$domain');
-      logoUrl ??= await _tryLogoService('https://favicons.githubusercontent.com/$domain');
-    }
-    
-    // Try merchant name inference
-    if (logoUrl == null) {
-      final inferredWebsite = await _inferWebsiteFromMerchant(merchantName);
+      logoUrl = 'https://www.google.com/s2/favicons?domain=$domain&sz=64';
+    } else {
+      final inferredWebsite = _inferWebsiteFromMerchant(merchantName);
       if (inferredWebsite != null) {
-        logoUrl = await _tryLogoService('https://logo.clearbit.com/$inferredWebsite');
-        logoUrl ??= await _tryLogoService('https://favicons.githubusercontent.com/$inferredWebsite');
-      }
-    }
-    
-    // Fallback to Google favicon service
-    if (logoUrl == null) {
-      final domain = website ?? await _inferWebsiteFromMerchant(merchantName);
-      if (domain != null) {
-        logoUrl = 'https://www.google.com/s2/favicons?domain=$domain&sz=64';
+        logoUrl = 'https://www.google.com/s2/favicons?domain=$inferredWebsite&sz=64';
       }
     }
 
     _logoCache[cacheKey] = logoUrl;
     return logoUrl;
-  }
-
-  Future<String?> _tryLogoService(String url) async {
-    try {
-      final response = await http.head(Uri.parse(url)).timeout(const Duration(seconds: 3));
-      if (response.statusCode == 200 && 
-          (response.headers['content-type']?.startsWith('image/') ?? false)) {
-        return url;
-      }
-    } catch (e) {
-      // Ignore and try next service
-    }
-    return null;
   }
 
   String _extractDomain(String website) {
@@ -815,69 +737,31 @@ class PlaidService {
     }
   }
 
-  /// Enhanced merchant website inference
-  Future<String?> _inferWebsiteFromMerchant(String merchantName) async {
+  String? _inferWebsiteFromMerchant(String merchantName) {
     final commonWebsites = {
-      // Major retailers
       'amazon': 'amazon.com',
       'target': 'target.com',
       'walmart': 'walmart.com',
-      'costco': 'costco.com',
-      'best buy': 'bestbuy.com',
-      'home depot': 'homedepot.com',
-      'lowes': 'lowes.com',
-      'cvs': 'cvs.com',
-      'walgreens': 'walgreens.com',
-      
-      // Food & Restaurants
       'starbucks': 'starbucks.com',
       'mcdonalds': 'mcdonalds.com',
-      'subway': 'subway.com',
-      'chipotle': 'chipotle.com',
-      'dunkin': 'dunkindonuts.com',
-      'whole foods': 'wholefoodsmarket.com',
-      
-      // Tech & Streaming
       'apple': 'apple.com',
       'google': 'google.com',
-      'microsoft': 'microsoft.com',
       'netflix': 'netflix.com',
       'spotify': 'spotify.com',
-      'hulu': 'hulu.com',
-      'disney': 'disneyplus.com',
-      
-      // Transportation
       'uber': 'uber.com',
       'lyft': 'lyft.com',
-      'airbnb': 'airbnb.com',
-      
-      // Financial
-      'paypal': 'paypal.com',
-      'venmo': 'venmo.com',
-      'chase': 'chase.com',
-      'wells fargo': 'wellsfargo.com',
-      'bank of america': 'bankofamerica.com',
-      
-      // Gas Stations
-      'shell': 'shell.com',
-      'exxon': 'exxon.com',
-      'chevron': 'chevron.com',
-      'bp': 'bp.com',
-      'mobil': 'mobil.com',
     };
     
     final cleanName = merchantName.toLowerCase()
         .replaceAll(RegExp(r'[^a-z\s]'), '')
         .trim();
     
-    // Check for exact matches first
     for (final entry in commonWebsites.entries) {
       if (cleanName.contains(entry.key)) {
         return entry.value;
       }
     }
     
-    // For single word merchants, try .com
     if (cleanName.isNotEmpty && !cleanName.contains(' ') && cleanName.length > 3) {
       return '$cleanName.com';
     }

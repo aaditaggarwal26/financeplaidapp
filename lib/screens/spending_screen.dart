@@ -33,6 +33,8 @@ class _SpendingScreenState extends State<SpendingScreen> {
   }
 
   Future<void> _initializeData() async {
+    print('=== SpendingScreen: _initializeData called ===');
+    
     if (!mounted) return;
     
     setState(() {
@@ -40,18 +42,23 @@ class _SpendingScreenState extends State<SpendingScreen> {
     });
 
     try {
+      // Check for Plaid connection
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
+      print('SpendingScreen: Plaid connection status: $hasPlaidConnection');
       
       if (hasPlaidConnection) {
-        await _loadPlaidData();
-      } else {
-        await _loadStaticData();
+        setState(() {
+          _usePlaidData = true;
+        });
       }
+
+      // Load data using DataService with proper context
+      await _loadData();
+      
     } catch (e) {
-      print('Error initializing spending data: $e');
-      if (mounted) {
-        await _loadStaticData();
-      }
+      print('SpendingScreen: Error initializing data: $e');
+      // Try to load static data as fallback
+      await _loadStaticData();
     }
 
     if (mounted) {
@@ -61,20 +68,30 @@ class _SpendingScreenState extends State<SpendingScreen> {
     }
   }
 
-  Future<void> _loadPlaidData() async {
+  Future<void> _loadData() async {
+    print('=== SpendingScreen: _loadData called ===');
+    
     if (!mounted) return;
     
     try {
-      // Use context for Plaid data loading
-      final transactions = await _dataService.getTransactions(context: context);
-      final spending = await _dataService.getMonthlySpending(context: context);
+      // Force refresh to get latest data
+      final transactions = await _dataService.getTransactions(
+        context: context,
+        forceRefresh: true,
+      );
+      
+      final spending = await _dataService.getMonthlySpending(
+        context: context,
+        forceRefresh: true,
+      );
+
+      print('SpendingScreen: Loaded ${transactions.length} transactions, ${spending.length} months of spending');
 
       if (!mounted) return;
 
       setState(() {
         allTransactions = transactions;
         monthlySpending = spending;
-        _usePlaidData = true;
         
         if (monthlySpending.isNotEmpty) {
           selectedMonthIndex = monthlySpending.length - 1;
@@ -82,23 +99,18 @@ class _SpendingScreenState extends State<SpendingScreen> {
         }
       });
     } catch (e) {
-      print('Error loading Plaid spending data: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load spending data: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        await _loadStaticData();
-      }
+      print('SpendingScreen: Error loading data: $e');
+      rethrow;
     }
   }
 
   Future<void> _loadStaticData() async {
+    print('=== SpendingScreen: _loadStaticData called ===');
+    
     if (!mounted) return;
     
     try {
+      // Load without context to get static/demo data
       final transactions = await _dataService.getTransactions();
       final spending = await _dataService.getMonthlySpending();
       
@@ -115,7 +127,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
         }
       });
     } catch (e) {
-      print('Error loading static data: $e');
+      print('SpendingScreen: Error loading static data: $e');
       if (mounted) {
         setState(() {
           monthlySpending = [];
@@ -140,7 +152,11 @@ class _SpendingScreenState extends State<SpendingScreen> {
   }
 
   Future<void> _handleRefresh() async {
+    print('=== SpendingScreen: _handleRefresh called ===');
     if (!mounted) return;
+    
+    // Clear cache to force fresh data
+    DataService.clearCache();
     await _initializeData();
   }
 
@@ -190,90 +206,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
       );
     }
 
-    if (!_usePlaidData && monthlySpending.isEmpty) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF2B3A55),
-        body: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Spending',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh, color: Colors.white),
-                      onPressed: _handleRefresh,
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.account_balance_wallet_outlined,
-                          size: 80,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'No Bank Account Connected',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF2B3A55),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Connect your bank account to see\nreal spending data and insights',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        ElevatedButton.icon(
-                          onPressed: _handleConnectAccount,
-                          icon: const Icon(Icons.add_circle_outline),
-                          label: const Text('Connect Account'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE5BA73),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
+    // Check if we have no spending data
     if (monthlySpending.isEmpty) {
       return Scaffold(
         backgroundColor: const Color(0xFF2B3A55),
@@ -285,13 +218,35 @@ class _SpendingScreenState extends State<SpendingScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Spending',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    Row(
+                      children: [
+                        const Text(
+                          'Spending',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (_usePlaidData) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'LIVE',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     IconButton(
                       icon: const Icon(Icons.refresh, color: Colors.white),
@@ -308,32 +263,51 @@ class _SpendingScreenState extends State<SpendingScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.receipt_long_outlined,
+                            _usePlaidData ? Icons.receipt_long_outlined : Icons.account_balance_wallet_outlined,
                             size: 80,
-                            color: Colors.grey,
+                            color: Colors.grey[400],
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 24),
                           Text(
-                            'No Spending Data Available',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
+                            _usePlaidData ? 'No Spending Data Available' : 'No Bank Account Connected',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
                               color: Color(0xFF2B3A55),
                             ),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
-                            'Make some transactions to see your spending analysis',
-                            style: TextStyle(
-                              fontSize: 14,
+                            _usePlaidData 
+                                ? 'Make some transactions to see your spending analysis'
+                                : 'Connect your bank account to see\nreal spending data and insights',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 16,
                               color: Colors.grey,
                             ),
                           ),
+                          if (!_usePlaidData) ...[
+                            const SizedBox(height: 32),
+                            ElevatedButton.icon(
+                              onPressed: _handleConnectAccount,
+                              icon: const Icon(Icons.add_circle_outline),
+                              label: const Text('Connect Account'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFE5BA73),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

@@ -20,6 +20,7 @@ class _SmartFeaturesDashboardWidgetState extends State<SmartFeaturesDashboardWid
   CashFlowPrediction? _cashFlowPrediction;
   bool _isLoadingSubscriptions = true;
   bool _isLoadingCashFlow = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -28,6 +29,8 @@ class _SmartFeaturesDashboardWidgetState extends State<SmartFeaturesDashboardWid
   }
 
   Future<void> _loadSmartFeatures() async {
+    print('=== SmartFeaturesDashboard: Loading smart features ===');
+    
     // Load subscription analysis
     try {
       final subscriptionAnalysis = await _subscriptionService.analyzeSubscriptions(context: context);
@@ -37,7 +40,9 @@ class _SmartFeaturesDashboardWidgetState extends State<SmartFeaturesDashboardWid
           _isLoadingSubscriptions = false;
         });
       }
+      print('SmartFeaturesDashboard: Subscription analysis loaded successfully');
     } catch (e) {
+      print('SmartFeaturesDashboard: Error loading subscription analysis: $e');
       if (mounted) {
         setState(() => _isLoadingSubscriptions = false);
       }
@@ -52,11 +57,23 @@ class _SmartFeaturesDashboardWidgetState extends State<SmartFeaturesDashboardWid
           _isLoadingCashFlow = false;
         });
       }
+      print('SmartFeaturesDashboard: Cash flow prediction loaded successfully');
     } catch (e) {
+      print('SmartFeaturesDashboard: Error loading cash flow prediction: $e');
       if (mounted) {
         setState(() => _isLoadingCashFlow = false);
       }
     }
+  }
+
+  Future<void> _refreshData() async {
+    print('=== SmartFeaturesDashboard: Refreshing data ===');
+    setState(() {
+      _isLoadingSubscriptions = true;
+      _isLoadingCashFlow = true;
+      _errorMessage = null;
+    });
+    await _loadSmartFeatures();
   }
 
   @override
@@ -64,21 +81,41 @@ class _SmartFeaturesDashboardWidgetState extends State<SmartFeaturesDashboardWid
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.auto_awesome, color: Color(0xFFE5BA73), size: 20),
-              SizedBox(width: 8),
-              Text(
-                'AI-POWERED INSIGHTS',
-                style: TextStyle(
-                  fontSize: 13,
-                  letterSpacing: 1,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey,
-                ),
+              const Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: Color(0xFFE5BA73), size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'AI-POWERED INSIGHTS',
+                    style: TextStyle(
+                      fontSize: 13,
+                      letterSpacing: 1,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
               ),
+              if (_isLoadingSubscriptions || _isLoadingCashFlow)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFFE5BA73),
+                  ),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 18, color: Colors.grey),
+                  onPressed: _refreshData,
+                  tooltip: 'Refresh insights',
+                ),
             ],
           ),
         ),
@@ -168,7 +205,12 @@ class _SmartFeaturesDashboardWidgetState extends State<SmartFeaturesDashboardWid
               ),
               const SizedBox(height: 20),
               if (_isLoadingSubscriptions)
-                const Center(child: CircularProgressIndicator(color: Color(0xFFE5BA73)))
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(color: Color(0xFFE5BA73)),
+                  ),
+                )
               else if (_subscriptionAnalysis != null)
                 _buildSubscriptionPreview()
               else
@@ -382,7 +424,12 @@ class _SmartFeaturesDashboardWidgetState extends State<SmartFeaturesDashboardWid
               ),
               const SizedBox(height: 20),
               if (_isLoadingCashFlow)
-                const Center(child: CircularProgressIndicator(color: Color(0xFFE5BA73)))
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(color: Color(0xFFE5BA73)),
+                  ),
+                )
               else if (_cashFlowPrediction != null)
                 _buildCashFlowPreview()
               else

@@ -63,32 +63,51 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   void _initPlaidListeners() {
     _successSubscription = PlaidLink.onSuccess.listen((LinkSuccess success) async {
-      print('Plaid success: ${success.publicToken}');
+      print('=== Plaid success: ${success.publicToken} ===');
       
       setState(() {
         _isLoading = true;
       });
       
-      final result = await _plaidService.exchangePublicToken(success.publicToken);
-      
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _usePlaidData = result;
-        });
+      try {
+        final result = await _plaidService.exchangePublicToken(success.publicToken);
         
-        if (result) {
-          _loadPlaidData();
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _usePlaidData = result;
+          });
+          
+          if (result) {
+            // Clear cache and reload data
+            DataService.clearCache();
+            await _loadPlaidData();
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Account connected successfully!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed to connect account'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        print('Error in success handler: $e');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Account connected successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to connect account'),
+            SnackBar(
+              content: Text('Connection error: $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -97,39 +116,37 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
 
     _exitSubscription = PlaidLink.onExit.listen((LinkExit exit) {
-      if (exit.error != null) {
-        print('Plaid error: ${exit.error?.displayMessage}');
+      print('=== Plaid exit: ${exit.error?.displayMessage} ===');
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
         
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-          
+        if (exit.error != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: ${exit.error?.displayMessage ?? 'Connection failed'}'),
-              backgroundColor: Colors.red,
+              content: Text('Connection cancelled: ${exit.error?.displayMessage ?? 'Unknown error'}'),
+              backgroundColor: Colors.orange,
             ),
           );
-        }
-      } else {
-        print('Plaid link closed without error');
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
         }
       }
     });
   }
 
   Future<void> _checkPlaidConnection() async {
-    final hasConnection = await _plaidService.hasPlaidConnection();
-    if (hasConnection && mounted) {
-      setState(() {
-        _usePlaidData = true;
-      });
-      _loadPlaidData();
+    try {
+      final hasConnection = await _plaidService.hasPlaidConnection();
+      if (hasConnection && mounted) {
+        setState(() {
+          _usePlaidData = true;
+        });
+        await _loadPlaidData();
+      }
+    } catch (e) {
+      print('Error checking Plaid connection: $e');
+      // Continue with static data
     }
   }
 
@@ -168,7 +185,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
   }
 
-  void _loadPlaidData() async {
+  Future<void> _loadPlaidData() async {
+    print('=== Dashboard: _loadPlaidData called ===');
+    
     if (!mounted) return;
     
     setState(() {
@@ -176,14 +195,19 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
 
     try {
-      // Get Plaid accounts
+      // Get Plaid accounts using context
       final accounts = await _plaidService.getAccounts(context);
       
-      // Get Plaid transactions
-      final transactions = await _plaidService.fetchTransactions(
+      // Get Plaid transactions using context
+      final transactions = await _dataService.getTransactions(
         context: context,
-        startDate: DateTime.now().subtract(const Duration(days: 30)),
-        endDate: DateTime.now(),
+        forceRefresh: true,
+      );
+      
+      // Get account balances
+      final balances = await _dataService.getAccountBalances(
+        context: context,
+        forceRefresh: true,
       );
       
       if (!mounted) return;
@@ -191,29 +215,24 @@ class _DashboardScreenState extends State<DashboardScreen>
       setState(() {
         _plaidAccounts = accounts;
         _transactionsFuture = Future.value(transactions);
+        _balancesFuture = Future.value(balances);
         _usePlaidData = true;
-        
-        // Create synthetic account balances based on Plaid data
-        final checkingBalance = _getTotalBalanceByType(accounts, 'depository');
-        final creditCardBalance = _getTotalBalanceByType(accounts, 'credit') * -1;
-        final investmentBalance = _getTotalBalanceByType(accounts, 'investment');
-        
-        final synthBalance = AccountBalance(
-          date: DateTime.now(),
-          checking: checkingBalance,
-          creditCardBalance: creditCardBalance,
-          savings: 0, 
-          investmentAccount: investmentBalance,
-          netWorth: checkingBalance + creditCardBalance + investmentBalance,
-        );
-        
-        _balancesFuture = Future.value([synthBalance]);
         _hasLoadedData = true;
       });
+      
+      print('Dashboard: Successfully loaded Plaid data');
     } catch (e) {
-      print('Error loading Plaid data: $e');
+      print('Dashboard: Error loading Plaid data: $e');
       if (mounted) {
+        // Fall back to static data
         _loadData();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Using demo data: ${e.toString()}'),
+            backgroundColor: Colors.orange,
+          ),
+        );
       }
     } finally {
       if (mounted) {
@@ -235,6 +254,12 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _refreshData() {
+    print('=== Dashboard: _refreshData called ===');
+    
+    // Clear cache to force fresh data
+    DataService.clearCache();
+    _plaidService.clearCaches();
+    
     if (_usePlaidData) {
       _loadPlaidData(); 
     } else {
@@ -306,7 +331,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE5BA73),
+                            color: _usePlaidData ? Colors.green : const Color(0xFFE5BA73),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -1294,6 +1319,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _handleAddAccount() async {
+    print('=== Dashboard: _handleAddAccount called ===');
+    
     setState(() {
       _isLoading = true;
     });
@@ -1301,7 +1328,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     try {
       print('Starting Plaid Link process...');
       
-      // Create link token with improved error handling
       final linkToken = await _plaidService.createLinkToken();
       
       if (linkToken == null) {
@@ -1312,7 +1338,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to create link token. Please check your internet connection and try again.'),
+              content: Text('Failed to create link token. Please try again later.'),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 4),
             ),
@@ -1323,7 +1349,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       
       print('Successfully created link token, opening Plaid Link...');
       
-      // Create and open Plaid Link with the token
       LinkTokenConfiguration configuration = LinkTokenConfiguration(
         token: linkToken,
       );
@@ -1332,7 +1357,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       await PlaidLink.open();
       
       // Note: Success and error handling is done in the stream listeners
-      // which are set up in _initPlaidListeners()
             
     } catch (e) {
       print('Error in _handleAddAccount: $e');
@@ -1344,10 +1368,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (mounted) {
         String errorMessage = 'Failed to connect account. ';
         
-        if (e.toString().contains('INVALID_PRODUCT')) {
-          errorMessage += 'Invalid Plaid configuration. Please contact support.';
-        } else if (e.toString().contains('network') || e.toString().contains('connection')) {
-          errorMessage += 'Please check your internet connection.';
+        if (e.toString().contains('NETWORK_ERROR')) {
+          errorMessage += 'Please check your internet connection and try again.';
+        } else if (e.toString().contains('INVALID_CONFIG')) {
+          errorMessage += 'Configuration error. Please contact support.';
         } else {
           errorMessage += 'Please try again later.';
         }
