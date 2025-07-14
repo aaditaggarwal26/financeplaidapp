@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>946317225084-n3pr9n5hv2uvegner9da7jp41ghdav3d.apps.googleusercontent.com</string>
+	<string>946317225084-t8flbvdpepob3sc998vtg8dg3ehab8io.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.946317225084-n3pr9n5hv2uvegner9da7jp41ghdav3d</string>
+	<string>com.googleusercontent.apps.946317225084-t8flbvdpepob3sc998vtg8dg3ehab8io</string>
 	<key>API_KEY</key>
 	<string>AIzaSyAN21HLuyTbioRl-LVwiBPnIgkPLgW9DQI</string>
 	<key>GCM_SENDER_ID</key>
@@ -13,7 +13,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.finsight.finsight.dev</string>
+	<string>com.finsight.finsight</string>
 	<key>PROJECT_ID</key>
 	<string>finsight-a5027</string>
 	<key>STORAGE_BUCKET</key>
@@ -29,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:946317225084:ios:68bc4aef9bc0ce72532df9</string>
+	<string>1:946317225084:ios:16e009db05c4bb13532df9</string>
 </dict>
 </plist>

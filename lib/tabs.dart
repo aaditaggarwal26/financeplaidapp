@@ -36,7 +36,7 @@ class _TabsState extends State<Tabs> {
       // Displays the selected screen
       body: _screens[_currentIndex],
 
-      // Single floating action button for AI chat only
+      // Floating chat button to access AI assistant screen
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(

@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     projectId: 'finsight-a5027',
     storageBucket: 'finsight-a5027.firebasestorage.app',
     iosClientId: '946317225084-t8flbvdpepob3sc998vtg8dg3ehab8io.apps.googleusercontent.com',
-    iosBundleId: 'com.finsight.finsight.dev',
+    iosBundleId: 'com.finsight.finsight',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -74,7 +74,7 @@ class DefaultFirebaseOptions {
     projectId: 'finsight-a5027',
     storageBucket: 'finsight-a5027.firebasestorage.app',
     iosClientId: '946317225084-t8flbvdpepob3sc998vtg8dg3ehab8io.apps.googleusercontent.com',
-    iosBundleId: 'com.finsight.finsight.dev',
+    iosBundleId: 'com.finsight.finsight',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

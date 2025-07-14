@@ -11,7 +11,6 @@ import 'package:finsight/services/data_service.dart';
 import 'package:finsight/services/plaid_service.dart';
 import 'package:plaid_flutter/plaid_flutter.dart';
 import 'package:finsight/screens/spending_screen.dart';
-import 'package:finsight/widgets/smart_features_dashboard_widget.dart';
 import 'dart:async';
 
 class DashboardScreen extends StatefulWidget {
@@ -1521,7 +1520,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       const SizedBox(height: 24),
-                      const SmartFeaturesDashboardWidget(),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
