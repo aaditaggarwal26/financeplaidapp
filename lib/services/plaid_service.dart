@@ -12,7 +12,7 @@ class PlaidService {
   // Plaid configuration read from .env file
   static String get _plaidClientId => dotenv.env['PLAID_CLIENT_ID'] ?? '';
   static String get _plaidSecret => dotenv.env['PLAID_SECRET'] ?? '';
-  static String get _plaidEnv => dotenv.env['PLAID_ENV'] ?? 'sandbox'; 
+  static String get _plaidEnv => dotenv.env['PLAID_ENV'] ?? 'development'; 
   
   static String get _plaidBaseUrl {
     switch (_plaidEnv.toLowerCase()) {
@@ -27,7 +27,7 @@ class PlaidService {
   }
   
   static List<String> get _plaidProducts => 
-    (dotenv.env['PLAID_PRODUCTS'] ?? 'transactions,auth')
+    (dotenv.env['PLAID_PRODUCTS'] ?? 'transactions,auth,accounts')
       .split(',')
       .map((p) => p.trim())
       .toList();
@@ -39,15 +39,16 @@ class PlaidService {
       .toList();
 
   final _secureStorage = const FlutterSecureStorage();
-  static const String _SECURE_ACCESS_TOKEN_KEY = 'plaid_access_token_secure';
-  static const String _ITEM_ID_KEY = 'plaid_item_id';
+  static const String _SECURE_ACCESS_TOKENS_KEY = 'plaid_access_tokens_secure';
+  static const String _CONNECTED_ACCOUNTS_KEY = 'plaid_connected_accounts';
   static const String _LAST_SUCCESSFUL_SYNC_KEY = 'plaid_last_sync';
 
   static final PlaidService _instance = PlaidService._internal();
   factory PlaidService() => _instance;
   PlaidService._internal();
 
-  String? _accessToken;
+  List<String> _accessTokens = [];
+  List<ConnectedAccount> _connectedAccounts = [];
   List<Map<String, dynamic>>? _cachedAccounts;
   final Map<String, String?> _logoCache = {};
 
@@ -195,7 +196,7 @@ class PlaidService {
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        await _saveAccessToken(data['access_token'], data['item_id']);
+        await _addAccessToken(data['access_token'], data['item_id']);
         print('Access token exchanged successfully');
         
         final prefs = await SharedPreferences.getInstance();
@@ -212,8 +213,204 @@ class PlaidService {
       return false;
     }
   }
-  
-  /// Fetches real transactions from connected accounts
+
+  /// Add a new access token to the list
+  Future<void> _addAccessToken(String accessToken, String itemId) async {
+    try {
+      await _loadAccessTokens();
+      
+      // Get institution info for this access token
+      final institutionInfo = await _getInstitutionInfo(accessToken);
+      
+      final newAccount = ConnectedAccount(
+        accessToken: accessToken,
+        itemId: itemId,
+        institutionName: institutionInfo['name'] ?? 'Unknown Bank',
+        institutionId: institutionInfo['institution_id'] ?? '',
+        connectedAt: DateTime.now(),
+      );
+      
+      _connectedAccounts.add(newAccount);
+      _accessTokens.add(accessToken);
+      
+      await _saveAccessTokens();
+      await _saveConnectedAccounts();
+      
+      print('Access token and account info saved securely');
+    } catch (e) {
+      print('PlaidService Exception (_addAccessToken): $e');
+      throw PlaidException('STORAGE_ERROR', 'Failed to save credentials securely');
+    }
+  }
+
+  /// Get institution information
+  Future<Map<String, dynamic>> _getInstitutionInfo(String accessToken) async {
+    try {
+      final url = Uri.parse('$_plaidBaseUrl/item/get');
+      final headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'FinSight/1.0.0',
+        'Plaid-Version': '2020-09-14',
+      };
+      
+      final body = json.encode({
+        'client_id': _plaidClientId,
+        'secret': _plaidSecret,
+        'access_token': accessToken,
+      });
+
+      final response = await http.post(url, headers: headers, body: body);
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final institutionId = data['item']['institution_id'];
+        
+        // Get institution details
+        final instUrl = Uri.parse('$_plaidBaseUrl/institutions/get_by_id');
+        final instBody = json.encode({
+          'client_id': _plaidClientId,
+          'secret': _plaidSecret,
+          'institution_id': institutionId,
+          'country_codes': _plaidCountryCodes,
+        });
+
+        final instResponse = await http.post(instUrl, headers: headers, body: instBody);
+        
+        if (instResponse.statusCode == 200) {
+          final instData = json.decode(instResponse.body);
+          return {
+            'institution_id': institutionId,
+            'name': instData['institution']['name'],
+            'url': instData['institution']['url'],
+            'logo': instData['institution']['logo'],
+            'primary_color': instData['institution']['primary_color'],
+          };
+        }
+      }
+      
+      return {'name': 'Unknown Bank', 'institution_id': ''};
+    } catch (e) {
+      print('Error getting institution info: $e');
+      return {'name': 'Unknown Bank', 'institution_id': ''};
+    }
+  }
+
+  /// Load access tokens from secure storage
+  Future<void> _loadAccessTokens() async {
+    try {
+      final tokensJson = await _secureStorage.read(key: _SECURE_ACCESS_TOKENS_KEY);
+      final accountsJson = await _secureStorage.read(key: _CONNECTED_ACCOUNTS_KEY);
+      
+      if (tokensJson != null) {
+        final tokensList = List<String>.from(json.decode(tokensJson));
+        _accessTokens = tokensList;
+      }
+      
+      if (accountsJson != null) {
+        final accountsList = List<Map<String, dynamic>>.from(json.decode(accountsJson));
+        _connectedAccounts = accountsList.map((json) => ConnectedAccount.fromJson(json)).toList();
+      }
+    } catch (e) {
+      print('Error loading access tokens: $e');
+      _accessTokens = [];
+      _connectedAccounts = [];
+    }
+  }
+
+  /// Save access tokens to secure storage
+  Future<void> _saveAccessTokens() async {
+    try {
+      await _secureStorage.write(
+        key: _SECURE_ACCESS_TOKENS_KEY, 
+        value: json.encode(_accessTokens)
+      );
+    } catch (e) {
+      print('Error saving access tokens: $e');
+    }
+  }
+
+  /// Save connected accounts info
+  Future<void> _saveConnectedAccounts() async {
+    try {
+      final accountsJson = _connectedAccounts.map((account) => account.toJson()).toList();
+      await _secureStorage.write(
+        key: _CONNECTED_ACCOUNTS_KEY,
+        value: json.encode(accountsJson)
+      );
+    } catch (e) {
+      print('Error saving connected accounts: $e');
+    }
+  }
+
+  /// Get all connected accounts
+  Future<List<ConnectedAccount>> getConnectedAccounts() async {
+    await _loadAccessTokens();
+    return _connectedAccounts;
+  }
+
+  /// Disconnect a specific account
+  Future<bool> disconnectAccount(String itemId) async {
+    try {
+      await _loadAccessTokens();
+      
+      // Find the account to disconnect
+      final accountIndex = _connectedAccounts.indexWhere((account) => account.itemId == itemId);
+      if (accountIndex == -1) return false;
+      
+      final account = _connectedAccounts[accountIndex];
+      
+      // Remove the item on Plaid's end
+      final url = Uri.parse('$_plaidBaseUrl/item/remove');
+      final headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'FinSight/1.0.0',
+        'Plaid-Version': '2020-09-14',
+      };
+      
+      final body = json.encode({
+        'client_id': _plaidClientId,
+        'secret': _plaidSecret,
+        'access_token': account.accessToken,
+      });
+
+      final response = await http.post(url, headers: headers, body: body);
+      
+      if (response.statusCode == 200) {
+        // Remove from local storage
+        _connectedAccounts.removeAt(accountIndex);
+        _accessTokens.remove(account.accessToken);
+        
+        await _saveAccessTokens();
+        await _saveConnectedAccounts();
+        
+        // Clear cache
+        clearCaches();
+        
+        print('Account disconnected successfully');
+        return true;
+      } else {
+        print('Error disconnecting account: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('Error disconnecting account: $e');
+      return false;
+    }
+  }
+
+  /// Check if we have any Plaid connections
+  Future<bool> hasPlaidConnection() async {
+    await _loadAccessTokens();
+    return _accessTokens.isNotEmpty;
+  }
+
+  /// Get the first available access token
+  Future<String?> _getAccessToken() async {
+    await _loadAccessTokens();
+    return _accessTokens.isNotEmpty ? _accessTokens.first : null;
+  }
+
+  /// Fetches real transactions from all connected accounts
   Future<List<app_model.Transaction>> fetchTransactions({
     required BuildContext context, 
     DateTime? startDate, 
@@ -222,17 +419,48 @@ class PlaidService {
   }) async {
     print('=== PlaidService: fetchTransactions called ===');
     
-    final accessToken = await _getAccessToken();
-    if (accessToken == null) {
-      print('No access token found');
+    await _loadAccessTokens();
+    
+    if (_accessTokens.isEmpty) {
+      print('No access tokens found');
       throw PlaidException('NO_ACCESS_TOKEN', 'No Plaid connection found. Please connect your account first.');
     }
 
     final now = DateTime.now();
     final start = startDate ?? now.subtract(const Duration(days: 365));
     final end = endDate ?? now;
-    final formattedStartDate = DateFormat('yyyy-MM-dd').format(start);
-    final formattedEndDate = DateFormat('yyyy-MM-dd').format(end);
+    
+    List<app_model.Transaction> allTransactions = [];
+    
+    // Fetch transactions from all connected accounts
+    for (final accessToken in _accessTokens) {
+      try {
+        final transactions = await _fetchTransactionsForToken(accessToken, start, end);
+        allTransactions.addAll(transactions);
+      } catch (e) {
+        print('Error fetching transactions for token: $e');
+        // Continue with other accounts even if one fails
+      }
+    }
+    
+    // Sort by date (newest first)
+    allTransactions.sort((a, b) => b.date.compareTo(a.date));
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_LAST_SUCCESSFUL_SYNC_KEY, DateTime.now().toIso8601String());
+    
+    print('Successfully processed ${allTransactions.length} total transactions from ${_accessTokens.length} accounts');
+    return allTransactions;
+  }
+
+  /// Fetch transactions for a specific access token
+  Future<List<app_model.Transaction>> _fetchTransactionsForToken(
+    String accessToken, 
+    DateTime startDate, 
+    DateTime endDate
+  ) async {
+    final formattedStartDate = DateFormat('yyyy-MM-dd').format(startDate);
+    final formattedEndDate = DateFormat('yyyy-MM-dd').format(endDate);
 
     final url = Uri.parse('$_plaidBaseUrl/transactions/get');
     final headers = {
@@ -246,9 +474,6 @@ class PlaidService {
     bool hasMore = true;
     int totalFetched = 0;
     const int maxTransactions = 2000;
-
-    print('Fetching transactions from $_plaidEnv environment...');
-    print('Date range: $formattedStartDate to $formattedEndDate');
 
     while (hasMore && totalFetched < maxTransactions) {
       final body = json.encode({
@@ -282,7 +507,7 @@ class PlaidService {
           totalFetched += transactions.length;
           hasMore = offset < total && transactions.isNotEmpty;
           
-          print('Fetched ${transactions.length} transactions (${totalFetched}/$total total)');
+          print('Fetched ${transactions.length} transactions (${totalFetched}/$total total) for token');
         } else {
           print('PlaidService Error (fetchTransactions): ${response.statusCode}');
           print('Response body: ${response.body}');
@@ -312,19 +537,15 @@ class PlaidService {
       }
     }
     
-    print('Processing ${allPlaidTransactions.length} transactions...');
+    print('Processing ${allPlaidTransactions.length} transactions for token...');
     final processedTransactions = await Future.wait(
       allPlaidTransactions.map((trx) => _processPlaidTransaction(trx)).toList()
     );
     
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_LAST_SUCCESSFUL_SYNC_KEY, DateTime.now().toIso8601String());
-    
-    print('Successfully processed ${processedTransactions.length} transactions');
     return processedTransactions;
   }
 
-  /// Gets real account information from connected banks
+  /// Gets real account information from all connected banks
   Future<List<Map<String, dynamic>>> getAccounts(BuildContext context, {bool forceRefresh = false}) async {
     print('=== PlaidService: getAccounts called ===');
     
@@ -333,11 +554,32 @@ class PlaidService {
       return _cachedAccounts!;
     }
     
-    final accessToken = await _getAccessToken();
-    if (accessToken == null) {
+    await _loadAccessTokens();
+    
+    if (_accessTokens.isEmpty) {
       throw PlaidException('NO_ACCESS_TOKEN', 'No Plaid connection found');
     }
 
+    List<Map<String, dynamic>> allAccounts = [];
+    
+    // Get accounts from all connected institutions
+    for (final accessToken in _accessTokens) {
+      try {
+        final accounts = await _getAccountsForToken(accessToken);
+        allAccounts.addAll(accounts);
+      } catch (e) {
+        print('Error getting accounts for token: $e');
+        // Continue with other accounts
+      }
+    }
+    
+    _cachedAccounts = allAccounts;
+    print('Fetched ${allAccounts.length} total accounts from ${_accessTokens.length} institutions');
+    return allAccounts;
+  }
+
+  /// Get accounts for a specific access token
+  Future<List<Map<String, dynamic>>> _getAccountsForToken(String accessToken) async {
     final url = Uri.parse('$_plaidBaseUrl/accounts/get');
     final headers = {
       'Content-Type': 'application/json',
@@ -367,13 +609,12 @@ class PlaidService {
         for (var acc in accounts) {
           acc['institution'] = institutionId;
           acc['last_update'] = DateTime.now().toIso8601String();
+          acc['access_token'] = accessToken; // Add access token for tracking
         }
         
-        _cachedAccounts = accounts;
-        print('Fetched ${accounts.length} accounts from connected institutions');
         return accounts;
       } else {
-        print('PlaidService Error (getAccounts): ${response.statusCode}');
+        print('PlaidService Error (getAccountsForToken): ${response.statusCode}');
         print('Response body: ${response.body}');
         
         final errorData = json.decode(response.body);
@@ -383,7 +624,7 @@ class PlaidService {
         );
       }
     } catch (e) {
-      print('PlaidService Exception (getAccounts): $e');
+      print('PlaidService Exception (getAccountsForToken): $e');
       if (e is PlaidException) rethrow;
       
       if (e.toString().contains('Failed host lookup')) {
@@ -393,12 +634,11 @@ class PlaidService {
     }
   }
 
-  /// Gets real-time account balances
+  /// Gets real-time account balances from all connected accounts
   Future<Map<String, double>> getAccountBalances({bool forceRefresh = false}) async {
     print('=== PlaidService: getAccountBalances called ===');
     
     try {
-      // Get a temporary context - we'll handle this more gracefully
       final accounts = await _getAccountsWithoutContext(forceRefresh: forceRefresh);
       
       double checking = 0, savings = 0, creditCardBalance = 0, investment = 0;
@@ -461,42 +701,28 @@ class PlaidService {
       return _cachedAccounts!;
     }
     
-    final accessToken = await _getAccessToken();
-    if (accessToken == null) {
+    await _loadAccessTokens();
+    
+    if (_accessTokens.isEmpty) {
       throw PlaidException('NO_ACCESS_TOKEN', 'No Plaid connection found');
     }
 
-    final url = Uri.parse('$_plaidBaseUrl/accounts/get');
-    final headers = {
-      'Content-Type': 'application/json',
-      'User-Agent': 'FinSight/1.0.0',
-      'Plaid-Version': '2020-09-14',
-    };
+    List<Map<String, dynamic>> allAccounts = [];
     
-    final body = json.encode({
-      'client_id': _plaidClientId,
-      'secret': _plaidSecret,
-      'access_token': accessToken,
-    });
-
-    try {
-      final response = await http.post(url, headers: headers, body: body).timeout(const Duration(seconds: 30));
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final accounts = List<Map<String, dynamic>>.from(data['accounts'] ?? []);
-        _cachedAccounts = accounts;
-        return accounts;
-      } else {
-        throw PlaidException('API_ERROR', 'Failed to fetch accounts');
+    for (final accessToken in _accessTokens) {
+      try {
+        final accounts = await _getAccountsForToken(accessToken);
+        allAccounts.addAll(accounts);
+      } catch (e) {
+        print('Error getting accounts for token: $e');
       }
-    } catch (e) {
-      if (e is PlaidException) rethrow;
-      throw PlaidException('NETWORK_ERROR', 'Network error: ${e.toString()}');
     }
+    
+    _cachedAccounts = allAccounts;
+    return allAccounts;
   }
 
-  /// Processes a raw Plaid transaction into our app model
+  // [Keep all the existing helper methods for processing transactions, mapping categories, etc.]
   Future<app_model.Transaction> _processPlaidTransaction(Map<String, dynamic> trx) async {
     final amount = (trx['amount'] as num?)?.toDouble() ?? 0.0;
     final merchantName = trx['merchant_name'] as String? ?? 
@@ -538,7 +764,6 @@ class PlaidService {
     );
   }
 
-  /// Enhanced category mapping using Plaid's personal finance categories
   String _mapPlaidCategory(Map<String, dynamic> trx) {
     if (trx['personal_finance_category'] != null) {
       final pfc = trx['personal_finance_category'];
@@ -769,38 +994,6 @@ class PlaidService {
     return null;
   }
 
-  /// Secure token storage
-  Future<void> _saveAccessToken(String accessToken, String itemId) async {
-    try {
-      await _secureStorage.write(key: _SECURE_ACCESS_TOKEN_KEY, value: accessToken);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_ITEM_ID_KEY, itemId);
-      _accessToken = accessToken;
-      print('Access token saved securely');
-    } catch (e) {
-      print('PlaidService Exception (_saveAccessToken): $e');
-      throw PlaidException('STORAGE_ERROR', 'Failed to save credentials securely');
-    }
-  }
-
-  Future<String?> _getAccessToken() async {
-    if (_accessToken != null) return _accessToken;
-    
-    try {
-      _accessToken = await _secureStorage.read(key: _SECURE_ACCESS_TOKEN_KEY);
-      return _accessToken;
-    } catch (e) {
-      print('PlaidService Exception (_getAccessToken): $e');
-      return null;
-    }
-  }
-
-  /// Check if we have a valid Plaid connection
-  Future<bool> hasPlaidConnection() async {
-    final token = await _getAccessToken();
-    return token != null && token.isNotEmpty;
-  }
-
   /// Get last successful sync time
   Future<DateTime?> getLastSyncTime() async {
     try {
@@ -822,20 +1015,67 @@ class PlaidService {
     print('Plaid caches cleared');
   }
 
-  /// Remove stored credentials (for logout)
-  Future<void> disconnect() async {
+  /// Remove all stored credentials (for logout)
+  Future<void> disconnectAll() async {
     try {
-      await _secureStorage.delete(key: _SECURE_ACCESS_TOKEN_KEY);
+      // Remove all items on Plaid's end
+      for (final account in _connectedAccounts) {
+        try {
+          await disconnectAccount(account.itemId);
+        } catch (e) {
+          print('Error disconnecting account ${account.institutionName}: $e');
+        }
+      }
+      
+      await _secureStorage.delete(key: _SECURE_ACCESS_TOKENS_KEY);
+      await _secureStorage.delete(key: _CONNECTED_ACCOUNTS_KEY);
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_ITEM_ID_KEY);
       await prefs.remove(_LAST_SUCCESSFUL_SYNC_KEY);
       
-      _accessToken = null;
+      _accessTokens.clear();
+      _connectedAccounts.clear();
       clearCaches();
-      print('Plaid connection removed');
+      print('All Plaid connections removed');
     } catch (e) {
-      print('Error disconnecting Plaid: $e');
+      print('Error disconnecting all Plaid accounts: $e');
     }
+  }
+}
+
+/// Connected Account model
+class ConnectedAccount {
+  final String accessToken;
+  final String itemId;
+  final String institutionName;
+  final String institutionId;
+  final DateTime connectedAt;
+
+  ConnectedAccount({
+    required this.accessToken,
+    required this.itemId,
+    required this.institutionName,
+    required this.institutionId,
+    required this.connectedAt,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'accessToken': accessToken,
+      'itemId': itemId,
+      'institutionName': institutionName,
+      'institutionId': institutionId,
+      'connectedAt': connectedAt.toIso8601String(),
+    };
+  }
+
+  factory ConnectedAccount.fromJson(Map<String, dynamic> json) {
+    return ConnectedAccount(
+      accessToken: json['accessToken'] ?? '',
+      itemId: json['itemId'] ?? '',
+      institutionName: json['institutionName'] ?? 'Unknown Bank',
+      institutionId: json['institutionId'] ?? '',
+      connectedAt: DateTime.parse(json['connectedAt'] ?? DateTime.now().toIso8601String()),
+    );
   }
 }
 

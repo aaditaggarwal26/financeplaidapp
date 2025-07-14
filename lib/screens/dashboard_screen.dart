@@ -38,6 +38,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isLoading = false;
   bool _usePlaidData = false;
   List<Map<String, dynamic>> _plaidAccounts = [];
+  List<ConnectedAccount> _connectedAccounts = [];
 
   // Stream subscriptions for Plaid events
   late final StreamSubscription<LinkSuccess>? _successSubscription;
@@ -82,6 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             // Clear cache and reload data
             DataService.clearCache();
             await _loadPlaidData();
+            await _loadConnectedAccounts();
             
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -143,10 +145,24 @@ class _DashboardScreenState extends State<DashboardScreen>
           _usePlaidData = true;
         });
         await _loadPlaidData();
+        await _loadConnectedAccounts();
       }
     } catch (e) {
       print('Error checking Plaid connection: $e');
       // Continue with static data
+    }
+  }
+
+  Future<void> _loadConnectedAccounts() async {
+    try {
+      final accounts = await _plaidService.getConnectedAccounts();
+      if (mounted) {
+        setState(() {
+          _connectedAccounts = accounts;
+        });
+      }
+    } catch (e) {
+      print('Error loading connected accounts: $e');
     }
   }
 
@@ -253,7 +269,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     return total;
   }
 
-  void _refreshData() {
+  Future<void> _refreshData() async {
     print('=== Dashboard: _refreshData called ===');
     
     // Clear cache to force fresh data
@@ -261,7 +277,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     _plaidService.clearCaches();
     
     if (_usePlaidData) {
-      _loadPlaidData(); 
+      await _loadPlaidData(); 
     } else {
       _loadData();
     }
@@ -475,6 +491,260 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Widget _buildConnectedAccountsSection() {
+    if (_connectedAccounts.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'CONNECTED ACCOUNTS',
+                style: TextStyle(
+                  fontSize: 13,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey,
+                ),
+              ),
+              TextButton(
+                onPressed: _showAccountManagementDialog,
+                child: const Text(
+                  'Manage',
+                  style: TextStyle(
+                    color: Color(0xFF2B3A55),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...(_connectedAccounts.map((account) => _buildConnectedAccountCard(account))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectedAccountCard(ConnectedAccount account) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2B3A55).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.account_balance,
+                color: Color(0xFF2B3A55),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    account.institutionName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2B3A55),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Connected ${_formatRelativeTime(account.connectedAt)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Active',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatRelativeTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  void _showAccountManagementDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Manage Connected Accounts'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_connectedAccounts.isEmpty)
+                const Text('No accounts connected yet.')
+              else
+                ..._connectedAccounts.map((account) => ListTile(
+                  leading: const Icon(Icons.account_balance),
+                  title: Text(account.institutionName),
+                  subtitle: Text('Connected ${_formatRelativeTime(account.connectedAt)}'),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () async {
+                      final confirmed = await _showDisconnectConfirmation(account.institutionName);
+                      if (confirmed == true) {
+                        await _disconnectAccount(account);
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
+                )),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _handleAddAccount();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2B3A55),
+            ),
+            child: const Text('Add Account', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _showDisconnectConfirmation(String bankName) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Disconnect Account'),
+        content: Text('Are you sure you want to disconnect from $bankName? This will remove all associated data.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Disconnect'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _disconnectAccount(ConnectedAccount account) async {
+    try {
+      setState(() => _isLoading = true);
+      
+      final success = await _plaidService.disconnectAccount(account.itemId);
+      
+      if (success) {
+        await _loadConnectedAccounts();
+        await _refreshData();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${account.institutionName} disconnected successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to disconnect ${account.institutionName}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   void _showAddMoneyDialog() {
     final TextEditingController amountController = TextEditingController();
     
@@ -660,7 +930,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
         const SizedBox(height: 20),
         const Text(
-          'It seems like you have no accounts connected!',
+          'Connect your first account to get started!',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w500,
@@ -669,7 +939,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
         const SizedBox(height: 8),
         const Text(
-          'Connect an account now to get started.',
+          'Link your bank account to see real-time\nfinancial data and insights.',
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 14,
             color: Colors.grey,
@@ -1529,12 +1800,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
         return Scaffold(
           backgroundColor: Colors.white,
-          body: RefreshIndicator(
+          body:           RefreshIndicator(
             color: const Color(0xFFE5BA73),
-            onRefresh: () async {
-              _refreshData();
-              await Future.delayed(const Duration(milliseconds: 1500));
-            },
+            onRefresh: _refreshData,
             child: CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
@@ -1546,6 +1814,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     delegate: SliverChildListDelegate([
                       const SizedBox(height: 24),
                       const SmartFeaturesDashboardWidget(),
+                      _buildConnectedAccountsSection(),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [

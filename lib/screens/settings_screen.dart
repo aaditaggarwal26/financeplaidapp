@@ -2,6 +2,7 @@
 import 'package:finsight/screens/about_screen.dart';
 import 'package:finsight/screens/help_qna_screen.dart';
 import 'package:finsight/screens/login_screen.dart';
+import 'package:finsight/services/plaid_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -17,10 +18,42 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   // Firebase auth instance for user management.
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final PlaidService _plaidService = PlaidService();
+  
+  List<ConnectedAccount> _connectedAccounts = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConnectedAccounts();
+  }
+
+  Future<void> _loadConnectedAccounts() async {
+    try {
+      final accounts = await _plaidService.getConnectedAccounts();
+      if (mounted) {
+        setState(() {
+          _connectedAccounts = accounts;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading connected accounts: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   // Signs the user out and redirects to the login screen.
   Future<void> _signOut(BuildContext context) async {
     try {
+      // Disconnect all Plaid accounts first
+      await _plaidService.disconnectAll();
+      
       await _auth.signOut();
       // Navigate to login screen after signing out.
       Navigator.of(context).pushReplacement(MaterialPageRoute(
@@ -72,6 +105,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       },
     );
+  }
+
+  Future<void> _showDisconnectAccountDialog(ConnectedAccount account) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Disconnect ${account.institutionName}'),
+        content: Text('Are you sure you want to disconnect this account? This will remove all associated data.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text('Disconnect'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _disconnectAccount(account);
+    }
+  }
+
+  Future<void> _disconnectAccount(ConnectedAccount account) async {
+    try {
+      setState(() => _isLoading = true);
+      
+      final success = await _plaidService.disconnectAccount(account.itemId);
+      
+      if (success) {
+        await _loadConnectedAccounts();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${account.institutionName} disconnected successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to disconnect ${account.institutionName}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String _formatRelativeTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+    } else {
+      return 'Just now';
+    }
   }
 
   // Builds the UI for the settings screen.
@@ -165,6 +281,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   color: Color(0xFF2B3A55).withOpacity(0.7),
                                 ),
                               ),
+                              // Connection status with better styling
+                              if (_connectedAccounts.isNotEmpty) ...[
+                                SizedBox(height: 8),
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFF2B3A55).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 6,
+                                        height: 6,
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFF2B3A55),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        '${_connectedAccounts.length} account${_connectedAccounts.length == 1 ? '' : 's'} linked',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF2B3A55),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -206,6 +355,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   physics: BouncingScrollPhysics(),
                   padding: EdgeInsets.zero,
                   children: [
+                    // Connected Accounts section
+                    if (_connectedAccounts.isNotEmpty)
+                      _buildSettingsSection(
+                        'CONNECTED ACCOUNTS',
+                        _connectedAccounts.map((account) => 
+                          _buildConnectedAccountTile(account)
+                        ).toList(),
+                      ),
+                    
                     // Preferences section for app settings.
                     _buildSettingsSection(
                       'PREFERENCES',
@@ -311,6 +469,85 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildConnectedAccountTile(ConnectedAccount account) {
+    return Material(
+      color: Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6.0),
+        child: ListTile(
+          leading: Container(
+            height: 40,
+            width: 40,
+            decoration: BoxDecoration(
+              color: Color(0xFF2B3A55).withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Icon(
+                Icons.account_balance,
+                color: Color(0xFF2B3A55),
+              ),
+            ),
+          ),
+          title: Text(
+            account.institutionName,
+            style: TextStyle(
+              color: Colors.black87,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          subtitle: Text(
+            'Connected ${_formatRelativeTime(account.connectedAt)}',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 12,
+            ),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Active',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green,
+                  ),
+                ),
+              ),
+              SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _showDisconnectAccountDialog(account),
+                child: Container(
+                  height: 30,
+                  width: 30,
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.delete_outline,
+                      size: 16,
+                      color: Colors.red,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // Builds the logout confirmation dialog.
   Widget _buildLogoutDialog(BuildContext context) {
     return Dialog(
@@ -357,7 +594,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             SizedBox(height: 12),
             Text(
-              'Are you sure you want to logout from your account?',
+              'Are you sure you want to logout from your account? This will disconnect all linked bank accounts.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.grey[700],
