@@ -52,8 +52,57 @@ class PlaidService {
   List<Map<String, dynamic>>? _cachedAccounts;
   final Map<String, String?> _logoCache = {};
 
+  /// Validates Plaid configuration
+  bool _validateConfiguration() {
+    if (_plaidClientId.isEmpty) {
+      print('PlaidService Error: PLAID_CLIENT_ID is empty');
+      return false;
+    }
+    if (_plaidSecret.isEmpty) {
+      print('PlaidService Error: PLAID_SECRET is empty');
+      return false;
+    }
+    
+    print('PlaidService Configuration:');
+    print('- Environment: $_plaidEnv');
+    print('- Base URL: $_plaidBaseUrl');
+    print('- Client ID: ${_plaidClientId.substring(0, 10)}...');
+    print('- Products: $_plaidProducts');
+    print('- Countries: $_plaidCountryCodes');
+    
+    return true;
+  }
+
+  /// Test network connectivity to Plaid servers
+  Future<bool> testConnectivity() async {
+    try {
+      print('Testing connectivity to $_plaidBaseUrl...');
+      final response = await http.get(
+        Uri.parse(_plaidBaseUrl),
+        headers: {'User-Agent': 'FinSight/1.0.0'},
+      ).timeout(const Duration(seconds: 10));
+      
+      print('Connectivity test result: ${response.statusCode}');
+      return response.statusCode < 500; // Any response means we can reach the server
+    } catch (e) {
+      print('Connectivity test failed: $e');
+      return false;
+    }
+  }
+
   /// Creates a link token for Plaid Link initialization
   Future<String?> createLinkToken() async {
+    if (!_validateConfiguration()) {
+      throw PlaidException('INVALID_CONFIG', 'Plaid configuration is invalid. Please check your .env file.');
+    }
+
+    // Test connectivity first
+    print('Testing network connectivity to Plaid...');
+    final canConnect = await testConnectivity();
+    if (!canConnect) {
+      throw PlaidException('CONNECTIVITY_TEST_FAILED', 'Cannot reach Plaid servers. Please check your internet connection and try a different network.');
+    }
+
     final userId = FirebaseAuth.instance.currentUser?.uid ?? 
       'user_${DateTime.now().millisecondsSinceEpoch}';
     
@@ -83,30 +132,32 @@ class PlaidService {
       'link_customization_name': null,
       if (redirectUri != null && redirectUri.isNotEmpty) 
         'redirect_uri': redirectUri,
-      // Production-specific configurations
-      'android_package_name': null,
+      // Basic account filters for development
       'account_filters': {
         'depository': {
-          'account_subtypes': ['checking', 'savings', 'money market'],
+          'account_subtypes': ['checking', 'savings'],
         },
         'credit': {
           'account_subtypes': ['credit card'],
         },
-        'investment': {
-          'account_subtypes': ['401k', 'ira', 'retirement', 'brokerage'],
-        },
       },
-      'required_if_supported_products': ['identity'],
-      'optional_products': ['assets', 'liabilities'],
+      // Only request identity if it's in the products list
+      if (_plaidProducts.contains('identity'))
+        'required_if_supported_products': ['identity'],
+      // Remove optional products that might cause issues
     };
 
     try {
       print('Creating link token for environment: $_plaidEnv');
+      print('Request URL: ${url.toString()}');
+      
       final response = await http.post(
         url, 
         headers: headers, 
         body: json.encode(body),
       ).timeout(const Duration(seconds: 30));
+      
+      print('Response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final responseBody = json.decode(response.body);
@@ -115,21 +166,54 @@ class PlaidService {
       } else {
         print('PlaidService Error (createLinkToken): ${response.statusCode}');
         print('Response body: ${response.body}');
-        final errorData = json.decode(response.body);
-        throw PlaidException(
-          errorData['error_code'] ?? 'UNKNOWN_ERROR',
-          errorData['error_message'] ?? 'Failed to create link token',
-        );
+        
+        // Parse error response for better error messages
+        try {
+          final errorData = json.decode(response.body);
+          final errorCode = errorData['error_code'] ?? 'UNKNOWN_ERROR';
+          final errorMessage = errorData['error_message'] ?? 'Failed to create link token';
+          final errorType = errorData['error_type'] ?? 'UNKNOWN';
+          
+          // Provide specific error messages for common issues
+          if (errorCode == 'INVALID_CREDENTIALS') {
+            throw PlaidException(errorCode, 'Invalid Plaid credentials. Please check your Client ID and Secret in the .env file.');
+          } else if (errorCode == 'INVALID_PRODUCT') {
+            throw PlaidException(errorCode, 'Invalid product configuration. Your account may not have access to the requested products.');
+          } else if (errorCode == 'INVALID_CLIENT') {
+            throw PlaidException(errorCode, 'Invalid client configuration. Please verify your Plaid account setup.');
+          } else if (errorType == 'INVALID_REQUEST') {
+            throw PlaidException(errorCode, 'Invalid request: $errorMessage');
+          }
+          
+          throw PlaidException(errorCode, errorMessage);
+        } catch (e) {
+          if (e is PlaidException) rethrow;
+          throw PlaidException('PARSE_ERROR', 'Failed to parse error response: ${response.body}');
+        }
       }
+    } on http.ClientException catch (e) {
+      print('PlaidService ClientException: $e');
+      if (e.message.contains('Failed host lookup')) {
+        throw PlaidException('DNS_ERROR', 'Cannot resolve Plaid servers. This could be due to:\n• Network connectivity issues\n• VPN/Proxy blocking Plaid\n• DNS server problems\n\nTry:\n• Switch to cellular data or different WiFi\n• Turn off VPN\n• Restart your device');
+      } else if (e.message.contains('Connection refused')) {
+        throw PlaidException('CONNECTION_ERROR', 'Connection refused by Plaid servers. Try again in a few minutes.');
+      } else if (e.message.contains('Connection timed out')) {
+        throw PlaidException('TIMEOUT_ERROR', 'Connection timed out. Check your internet speed and try again.');
+      }
+      throw PlaidException('NETWORK_ERROR', 'Network error: ${e.message}\n\nTry switching networks or check your internet connection.');
     } catch (e) {
       print('PlaidService Exception (createLinkToken): $e');
       if (e is PlaidException) rethrow;
-      throw PlaidException('NETWORK_ERROR', 'Failed to connect to Plaid: ${e.toString()}');
+      throw PlaidException('UNEXPECTED_ERROR', 'Unexpected error: ${e.toString()}');
     }
   }
 
   /// Exchanges public token for access token
   Future<bool> exchangePublicToken(String publicToken) async {
+    if (!_validateConfiguration()) {
+      return false;
+    }
+
     final url = Uri.parse('$_plaidBaseUrl/item/public_token/exchange');
     final headers = {
       'Content-Type': 'application/json',
@@ -144,11 +228,14 @@ class PlaidService {
     });
 
     try {
+      print('Exchanging public token...');
       final response = await http.post(
         url, 
         headers: headers, 
         body: body,
       ).timeout(const Duration(seconds: 30));
+      
+      print('Exchange response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -163,8 +250,19 @@ class PlaidService {
       } else {
         print('PlaidService Error (exchangePublicToken): ${response.statusCode}');
         print('Response body: ${response.body}');
+        
+        try {
+          final errorData = json.decode(response.body);
+          print('Error details: ${errorData['error_code']} - ${errorData['error_message']}');
+        } catch (e) {
+          print('Could not parse error response');
+        }
+        
         return false;
       }
+    } on http.ClientException catch (e) {
+      print('PlaidService ClientException (exchangePublicToken): $e');
+      return false;
     } catch (e) {
       print('PlaidService Exception (exchangePublicToken): $e');
       return false;
@@ -258,10 +356,16 @@ class PlaidService {
             errorData['error_message'] ?? 'Failed to fetch transactions from Plaid',
           );
         }
+      } on http.ClientException catch (e) {
+        print('PlaidService ClientException (fetchTransactions): $e');
+        if (e.message.contains('Failed host lookup')) {
+          throw PlaidException('DNS_ERROR', 'Cannot resolve Plaid servers. Please check your internet connection.');
+        }
+        throw PlaidException('NETWORK_ERROR', 'Network error: ${e.message}');
       } catch (e) {
         print('PlaidService Exception (fetchTransactions): $e');
         if (e is PlaidException) rethrow;
-        throw PlaidException('NETWORK_ERROR', 'Failed to fetch transactions: ${e.toString()}');
+        throw PlaidException('UNEXPECTED_ERROR', 'Unexpected error: ${e.toString()}');
       }
     }
     
@@ -338,10 +442,16 @@ class PlaidService {
           errorData['error_message'] ?? 'Failed to fetch accounts',
         );
       }
+    } on http.ClientException catch (e) {
+      print('PlaidService ClientException (getAccounts): $e');
+      if (e.message.contains('Failed host lookup')) {
+        throw PlaidException('DNS_ERROR', 'Cannot resolve Plaid servers. Please check your internet connection.');
+      }
+      throw PlaidException('NETWORK_ERROR', 'Network error: ${e.message}');
     } catch (e) {
       print('PlaidService Exception (getAccounts): $e');
       if (e is PlaidException) rethrow;
-      throw PlaidException('NETWORK_ERROR', 'Failed to connect to bank: ${e.toString()}');
+      throw PlaidException('UNEXPECTED_ERROR', 'Unexpected error: ${e.toString()}');
     }
   }
 
@@ -677,7 +787,6 @@ class PlaidService {
     }
 
     _logoCache[cacheKey] = logoUrl;
-    print('Found logo for $merchantName: $logoUrl');
     return logoUrl;
   }
 

@@ -163,7 +163,7 @@ class DataService {
     }
   }
 
-  // Production-ready transaction fetching - only real data
+  // RESTORED: Simple transaction fetching that works like your original
   Future<List<Transaction>> getTransactions({
     BuildContext? context,
     bool forceRefresh = false,
@@ -200,7 +200,7 @@ class DataService {
       }
     } catch (e) {
       print('Error loading Plaid transactions: $e');
-      // Continue to get local transactions
+      // Continue to get local transactions - don't show error to user in other screens
     }
 
     // Second: Get manually added/scanned transactions
@@ -309,7 +309,7 @@ class DataService {
     };
   }
 
-  // Production-ready account balances - only real data
+  // RESTORED: Account balances - try Plaid first, fallback to demo data
   Future<List<AccountBalance>> getAccountBalances({
     BuildContext? context,
     bool forceRefresh = false,
@@ -347,9 +347,35 @@ class DataService {
 
         return balances;
       } else {
-        // Return empty list if no real connection - no fake data
-        print('No Plaid connection available - returning empty balances');
-        return [];
+        // RESTORED: Return demo data like your original code
+        print('No Plaid connection - using demo balances');
+        try {
+          final String data = await rootBundle.loadString('assets/data/account_balances.csv');
+          List<List<dynamic>> csvTable = const CsvToListConverter().convert(data, eol: '\n');
+          
+          List<AccountBalance> balances = [];
+          for (var i = 1; i < csvTable.length; i++) {
+            try {
+              balances.add(AccountBalance.fromCsv({
+                'Date': csvTable[i][0].toString(),
+                'Checking': csvTable[i][1].toString(),
+                'Credit_Card_Balance': csvTable[i][2].toString(),
+                'Savings': csvTable[i][3].toString(),
+                'Investment_Account': csvTable[i][4].toString(),
+                'Net_Worth': csvTable[i][5].toString(),
+              }));
+            } catch (e) {
+              print('Error parsing balance row $i: $e');
+            }
+          }
+          
+          _cachedBalances = balances;
+          _lastBalanceFetch = DateTime.now();
+          return balances;
+        } catch (e) {
+          print('Error loading demo balances: $e');
+          return [];
+        }
       }
     } catch (e) {
       print('Error loading account balances: $e');
@@ -357,7 +383,7 @@ class DataService {
     }
   }
 
-  // Production-ready monthly spending - only real data
+  // RESTORED: Monthly spending - try to generate from transactions, fallback to demo
   Future<List<MonthlySpending>> getMonthlySpending({
     BuildContext? context,
     bool forceRefresh = false,
@@ -374,17 +400,41 @@ class DataService {
     }
 
     try {
-      print('Generating monthly spending from real transactions...');
+      print('Generating monthly spending from transactions...');
       final spending = await _getMonthlySpendingFromTransactions(
         context: context,
         includeScannedReceipts: showScannedReceipts,
       );
 
-      // Update cache
-      _cachedMonthlySpending = spending;
-      _lastMonthlySpendingFetch = DateTime.now();
-
-      return spending;
+      if (spending.isNotEmpty) {
+        // Update cache
+        _cachedMonthlySpending = spending;
+        _lastMonthlySpendingFetch = DateTime.now();
+        return spending;
+      } else {
+        // RESTORED: Fallback to demo data
+        print('No transaction data - using demo monthly spending');
+        try {
+          final String data = await rootBundle.loadString('assets/data/monthly_spending.csv');
+          List<List<dynamic>> csvTable = const CsvToListConverter().convert(data, eol: '\n');
+          
+          List<MonthlySpending> demoSpending = [];
+          for (var i = 1; i < csvTable.length; i++) {
+            try {
+              demoSpending.add(MonthlySpending.fromCsv(csvTable[i]));
+            } catch (e) {
+              print('Error parsing spending row $i: $e');
+            }
+          }
+          
+          _cachedMonthlySpending = demoSpending;
+          _lastMonthlySpendingFetch = DateTime.now();
+          return demoSpending;
+        } catch (e) {
+          print('Error loading demo spending: $e');
+          return [];
+        }
+      }
     } catch (e) {
       print('Error loading monthly spending: $e');
       return [];
@@ -526,7 +576,7 @@ class DataService {
     }
   }
 
-  // Production-ready checking accounts - only real data
+  // RESTORED: Original checking accounts logic
   Future<List<CheckingAccount>> getCheckingAccounts(
       {BuildContext? context}) async {
     try {
@@ -551,8 +601,30 @@ class DataService {
 
         return checkingAccounts;
       } else {
-        print('No Plaid connection - returning empty checking accounts');
-        return [];
+        // RESTORED: Return demo data
+        try {
+          final String data = await rootBundle.loadString('assets/data/checking_accounts.csv');
+          List<List<dynamic>> csvTable = const CsvToListConverter().convert(data, eol: '\n');
+          
+          List<CheckingAccount> accounts = [];
+          for (var i = 1; i < csvTable.length; i++) {
+            try {
+              accounts.add(CheckingAccount(
+                name: csvTable[i][0].toString(),
+                accountNumber: csvTable[i][1].toString(),
+                balance: double.parse(csvTable[i][2].toString()),
+                type: csvTable[i][3].toString(),
+                bankName: csvTable[i][4].toString(),
+              ));
+            } catch (e) {
+              print('Error parsing checking account row $i: $e');
+            }
+          }
+          return accounts;
+        } catch (e) {
+          print('Error loading demo checking accounts: $e');
+          return [];
+        }
       }
     } catch (e) {
       print('Error loading checking accounts: $e');
@@ -560,7 +632,7 @@ class DataService {
     }
   }
 
-  // Production-ready credit cards - only real data
+  // RESTORED: Original credit cards logic
   Future<List<CreditCard>> getCreditCards({BuildContext? context}) async {
     try {
       final hasPlaidConnection = await _plaidService.hasPlaidConnection();
@@ -586,8 +658,31 @@ class DataService {
 
         return creditCards;
       } else {
-        print('No Plaid connection - returning empty credit cards');
-        return [];
+        // RESTORED: Return demo data
+        try {
+          final String data = await rootBundle.loadString('assets/data/credit_cards.csv');
+          List<List<dynamic>> csvTable = const CsvToListConverter().convert(data, eol: '\n');
+          
+          List<CreditCard> cards = [];
+          for (var i = 1; i < csvTable.length; i++) {
+            try {
+              cards.add(CreditCard(
+                name: csvTable[i][0].toString(),
+                lastFour: csvTable[i][1].toString(),
+                balance: double.parse(csvTable[i][2].toString()),
+                creditLimit: double.parse(csvTable[i][3].toString()),
+                apr: double.parse(csvTable[i][4].toString()),
+                bankName: csvTable[i][5].toString(),
+              ));
+            } catch (e) {
+              print('Error parsing credit card row $i: $e');
+            }
+          }
+          return cards;
+        } catch (e) {
+          print('Error loading demo credit cards: $e');
+          return [];
+        }
       }
     } catch (e) {
       print('Error loading credit cards: $e');
